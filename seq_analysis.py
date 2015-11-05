@@ -3,46 +3,88 @@ import pandas as pd
 import pickle
 import numpy as np
 
-def load_dataset(csv_filepath):
-    barcode_counts = pd.read_csv(csv_filepath)
-    num_unique_reads = len(barcode_counts)
-    unique_read_count_total = barcode_counts["counts"].sum()
+raw_barcode_data = None
+mapped_barcode_data = None
 
-    data = pickle.load(open("allele_dic_with_WT.pkl", "rb"))
+def map_dataset(csv_filepath):
+    """
+    Loads raw demultiplexed read csv and maps it onto the barcode-mutant
+    pairing. Does not process the data further.
+    """
+    global raw_barcode_data
+    raw_barcode_data = pd.read_csv(csv_filepath)
+    num_unique_reads = len(raw_barcode_data)
+    unique_read_count_total = raw_barcode_data["counts"].sum()
 
-    data = pd.DataFrame(data).T.reset_index()
-    data.columns = ["barcodes", "positions", "codons"]
-    data["barcodes"] = data["barcodes"].apply(lambda x: str(Seq(x).reverse_complement()))
-    data["barcodes"] = data["barcodes"].astype(np.str)
-    barcode_counts[["days","timepoints"]] = barcode_counts["exp"].str.replace(r"t", "_t").str.split("_", expand=True)
+    with open("allele_dic_with_WT.pkl", "rb") as f:
+        barcode_mutant_map = pd.DataFrame(pickle.load(f)).T.reset_index()
 
-    data["WT"] = data["codons"] == "WT"
-    data["amino acids"] = "@"
-    data.loc[~data["WT"], "codons"] = data.loc[~data["WT"], "codons"].apply(lambda x: str(Seq(x).transcribe()))
-    data.loc[~data["WT"], "amino acids"] = data.loc[~data["WT"], "codons"].apply(lambda x: str(Seq(x).translate()))
+    barcode_mutant_map.columns = ["barcodes", "positions", "codons"]
+    barcode_mutant_map["barcodes"] = barcode_mutant_map["barcodes"].apply(lambda x: str(Seq(x).reverse_complement()))
+    barcode_mutant_map["barcodes"] = barcode_mutant_map["barcodes"].astype(np.str)
 
-    barcode_counts = barcode_counts.merge(data, on="barcodes", how="inner")
-    barcode_counts["positions"] = barcode_counts["positions"].astype(np.int)
-    barcode_counts.index.name = "idxs"
+    # split out days and timepoints into separate columns
+    raw_barcode_data[["days","timepoints"]] = raw_barcode_data["exp"].str.replace(r"t", "_t").str.split("_", expand=True)
 
-    print("Percent of unique barcodes mapped: {:.2%}".format(len(barcode_counts)/num_unique_reads))
-    print("Percent of total reads mapped: {:.2%}\n".format(barcode_counts["counts"].sum()/unique_read_count_total))
+    barcode_mutant_map["WT"] = barcode_mutant_map["codons"] == "WT"
+    # add dummy value for WT barcodes
+    barcode_mutant_map["amino acids"] = "@"
+    barcode_mutant_map.loc[~barcode_mutant_map["WT"], "codons"] = barcode_mutant_map.loc[~barcode_mutant_map["WT"], "codons"].apply(lambda x: str(Seq(x).transcribe()))
+    barcode_mutant_map.loc[~barcode_mutant_map["WT"], "amino acids"] = barcode_mutant_map.loc[~barcode_mutant_map["WT"], "codons"].apply(lambda x: str(Seq(x).translate()))
+
+    global mapped_barcode_data
+    mapped_barcode_data = raw_barcode_data.merge(barcode_mutant_map, on="barcodes", how="inner")
+    mapped_barcode_data["positions"] = mapped_barcode_data["positions"].astype(np.int)
+    mapped_barcode_data.index.name = "idxs"
+
+    print("Percent of unique barcodes mapped: {:.2%}".format(len(mapped_barcode_data)/num_unique_reads))
+    print("Percent of total reads mapped: {:.2%}\n".format(mapped_barcode_data["counts"].sum()/unique_read_count_total))
 
     print("group   % of total barcodes found")
-    for name, group in barcode_counts.groupby("exp"):
-            print("{}    {:.2%}".format(name, len(group)/len(data)))
+    for name, group in mapped_barcode_data.groupby("exp"):
+            print("{}    {:.2%}".format(name, len(group)/len(barcode_mutant_map)))
+
+    return raw_barcode_data, mapped_barcode_data
+
+
+def process_data():
+    if mapped_barcode_data is None:
+        print("Data not yet loaded, loading now...\n")
+        map_dataset("et0h_barcodes_to_count.csv")
 
     # transform data
-    df = barcode_counts.pivot_table(index=["days", "timepoints", "barcodes", "codons","amino acids", "positions"],  
-                                             values=["counts"])
+    df = mapped_barcode_data.pivot_table(index=["days", "timepoints", "barcodes", "codons","amino acids", "positions"],
+                                         values=["counts", "rel_freq", "rel_wt"])
 
     df = df.unstack("days").unstack("timepoints")
 
     idx = pd.IndexSlice
-    # Throw out values that have no counts in at least one 
+    # Throw out barcodes that have no counts in at least one experiment
     df = df[pd.notnull(df.loc[:, idx["counts"]]).sum(axis=1) == 6]
-    sums = df["counts"].sum()
-    flattened_df = df.stack("days").stack("timepoints")
 
-    medians = df.loc[idx[:, "WT"], idx["counts"]].median()
-    return df.loc[:, idx["counts"]]/medians
+    # Throw out values that have <10 counts in every experiment
+    df = df[(df.loc[:, idx["counts"]] < 10).sum(axis=1) < 6]
+
+    sums = df["counts"].sum()
+
+    # create a new multiindexed column called rel_freq
+    new_cols = pd.MultiIndex.from_product([["rel_freq"], ["d1", "d2"], ["t0", "t1", "t2"]])
+    normed_df = df.loc[:, idx["counts"]]/sums
+    normed_df = pd.DataFrame(normed_df.values, index=normed_df.index, columns=new_cols)
+
+    # add the new column
+    df = pd.concat([df, normed_df], axis=1)
+
+    #calculate medians for rel_freq
+    medians = df.loc[idx[:, "WT"], idx["rel_freq"]].median()
+    median_string = medians.to_string(float_format='{:.8g}'.format)
+    print("\nMedian values for relative frequencies\n{}".format(median_string))
+
+    # create a new multiindexed column called rel_wt
+    normed_df = df.loc[:, idx["rel_freq"]].divide(medians)
+    new_cols = pd.MultiIndex.from_product([["rel_wt"], ["d1", "d2"], ["t0", "t1", "t2"]])
+    normed_df = pd.DataFrame(normed_df.values, index=normed_df.index, columns=new_cols)
+
+    #add new column
+    df = pd.concat([df, normed_df], axis=1)
+    return df
