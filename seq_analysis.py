@@ -62,8 +62,8 @@ def process_data():
     # Throw out barcodes that have no counts in at least one experiment
     df = df[pd.notnull(df.loc[:, idx["counts"]]).sum(axis=1) == 6]
 
-    # Throw out values that have <10 counts in every experiment
-    df = df[(df.loc[:, idx["counts"]] < 10).sum(axis=1) < 6]
+    # Throw out values that have a count 1 in any experiment
+    df = df[df[df == 1].count(axis=1) == 0]
 
     sums = df["counts"].sum()
 
