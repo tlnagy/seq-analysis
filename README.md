@@ -12,6 +12,6 @@ follows:
 %autoreload 2
 
 import seq_analysis as seq
-df = seq.load_dataset("et0h_barcodes_to_count.csv")
+df = seq.process_data()
 df
 ```
