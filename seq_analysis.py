@@ -30,11 +30,11 @@ def load_dataset(csv_filepath):
 
     print("group   % of total barcodes found")
     for name, group in barcode_counts.groupby("exp"):
-        print("{}    {:.2%}".format(name, len(group)/len(data)))
+            print("{}    {:.2%}".format(name, len(group)/len(data)))
 
     # transform data
     df = barcode_counts.pivot_table(index=["days", "timepoints", "barcodes", "codons","amino acids", "positions"],  
-                                         values=["counts"])
+                                             values=["counts"])
 
     df = df.unstack("days").unstack("timepoints")
 
@@ -42,13 +42,7 @@ def load_dataset(csv_filepath):
     # Throw out values that have no counts in at least one 
     df = df[pd.notnull(df.loc[:, idx["counts"]]).sum(axis=1) == 6]
     sums = df["counts"].sum()
-    df = df.stack("days").stack("timepoints")
-    flattened_df = df.unstack("days").unstack("timepoints")
-    df.loc[:, "rel_freq"] = (flattened_df.loc[:,
-        idx["counts"]]/sums).stack("days").stack("timepoints")
-    medians = df.loc[idx[:, "WT"], idx["rel_freq"]].median()
-    flattened_df = df.unstack("days").unstack("timepoints")
-    df.loc[:, "rel_wt"] = (flattened_df.loc[:,
-        idx["rel_freq"]]/medians).stack("days").stack("timepoints")
-    df = df.unstack("days").unstack("timepoints")
-    return(df)
+    flattened_df = df.stack("days").stack("timepoints")
+
+    medians = df.loc[idx[:, "WT"], idx["counts"]].median()
+    return df.loc[:, idx["counts"]]/medians
