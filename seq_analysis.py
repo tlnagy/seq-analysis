@@ -19,6 +19,7 @@ def load_dataset(csv_filepath):
     barcode_counts[["days","timepoints"]] = barcode_counts["exp"].str.replace(r"t", "_t").str.split("_", expand=True)
 
     data["WT"] = data["codons"] == "WT"
+    data["amino acids"] = "@"
     data.loc[~data["WT"], "codons"] = data.loc[~data["WT"], "codons"].apply(lambda x: str(Seq(x).transcribe()))
     data.loc[~data["WT"], "amino acids"] = data.loc[~data["WT"], "codons"].apply(lambda x: str(Seq(x).translate()))
 
