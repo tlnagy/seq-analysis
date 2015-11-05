@@ -37,4 +37,4 @@ def load_dataset(csv_filepath):
     df = barcode_counts.pivot_table(index=["days", "timepoints", "barcodes", "codons","amino acids", "positions"],  
                                          values=["rel_freq", "counts"])
 
-    print(df)
+    return(df)
