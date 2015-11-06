@@ -11,7 +11,7 @@ from Bio.Seq import Seq
 import pandas as pd
 import pickle
 import numpy as np
-import scipy
+import scipy.stats
 
 raw_barcode_data = None
 mapped_barcode_data = None
