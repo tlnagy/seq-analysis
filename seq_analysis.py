@@ -11,9 +11,11 @@ from Bio.Seq import Seq
 import pandas as pd
 import pickle
 import numpy as np
+import scipy
 
 raw_barcode_data = None
 mapped_barcode_data = None
+processed_barcodes = None
 
 
 def map_dataset(csv_filepath):
@@ -59,44 +61,78 @@ def map_dataset(csv_filepath):
 
 def process_data(csv_filepath = "et0h_barcodes_to_count.csv"):
     if mapped_barcode_data is None:
-        print("Data not yet loaded, loading now...\n")
+        print("Data not yet loaded, loading now...\n", flush=True)
         map_dataset(csv_filepath)
 
+    global processed_barcodes
     # transform data
-    df = mapped_barcode_data.pivot_table(index=["days", "timepoints", "barcodes", "codons","amino acids", "positions"],
-                                         values=["counts", "rel_freq", "rel_wt"])
+    processed_barcodes = mapped_barcode_data.pivot_table(index=["days", "timepoints", "barcodes", "codons","amino acids", "positions"],
+                                                         values=["counts", "rel_freq", "rel_wt"])
 
-    df = df.unstack("days").unstack("timepoints")
+    processed_barcodes = processed_barcodes.unstack("days").unstack("timepoints")
 
     idx = pd.IndexSlice
     # Throw out barcodes that have no counts in at least one experiment
-    df = df[pd.notnull(df.loc[:, idx["counts"]]).sum(axis=1) == 6]
+    processed_barcodes = processed_barcodes[pd.notnull(processed_barcodes.loc[:, idx["counts"]]).sum(axis=1) == 6]
 
-    before = len(df)
+    before = len(processed_barcodes)
     # Throw out values that have a count 1 in any experiment
-    df = df[df[df == 1].count(axis=1) == 0]
-    print("\nDiscarding {} barcodes that had a count of 1 at any timepoint".format(before-len(df)))
+    processed_barcodes = processed_barcodes[processed_barcodes[processed_barcodes == 1].count(axis=1) == 0]
+    print("\nDiscarding {} barcodes that had a count of 1 at any timepoint".format(before-len(processed_barcodes)))
 
-    sums = df["counts"].sum()
+    sums = processed_barcodes["counts"].sum()
 
     # create a new multiindexed column called rel_freq
     new_cols = pd.MultiIndex.from_product([["rel_freq"], ["d1", "d2"], ["t0", "t1", "t2"]])
-    normed_df = df.loc[:, idx["counts"]]/sums
+    normed_df = processed_barcodes.loc[:, idx["counts"]]/sums
     normed_df = pd.DataFrame(normed_df.values, index=normed_df.index, columns=new_cols)
 
     # add the new column
-    df = pd.concat([df, normed_df], axis=1)
+    processed_barcodes = pd.concat([processed_barcodes, normed_df], axis=1)
 
     #calculate medians for rel_freq
-    medians = df.loc[idx[:, "WT"], idx["rel_freq"]].median()
-    median_string = medians.to_string(float_format='{:.8g}'.format)
-    print("\nMedian values for relative frequencies\n{}".format(median_string))
+    medians = processed_barcodes.loc[idx[:, "WT"], idx["rel_freq"]].median()
 
     # create a new multiindexed column called rel_wt
-    normed_df = df.loc[:, idx["rel_freq"]].divide(medians)
+    normed_df = processed_barcodes.loc[:, idx["rel_freq"]].divide(medians)
     new_cols = pd.MultiIndex.from_product([["rel_wt"], ["d1", "d2"], ["t0", "t1", "t2"]])
     normed_df = pd.DataFrame(normed_df.values, index=normed_df.index, columns=new_cols)
 
     #add new column
-    df = pd.concat([df, normed_df], axis=1)
-    return df
+    processed_barcodes = pd.concat([processed_barcodes, normed_df], axis=1)
+    return processed_barcodes
+
+
+def _linregress_func(xs, ys):
+    slope, intercept, r, p, stderr = scipy.stats.linregress(xs, ys)
+    return pd.Series({"slope": slope, "r^2": r**2, "intercept": intercept, "stderr": stderr},
+                     index=["slope", "stderr", "r^2", "intercept"], name="stats")
+
+
+def regress(df=None, average_days = False):
+    """
+    Runs a linear regression across timepoints and returns a dataframe with the slopes
+    If average_days is True then the two days will be averaged and one value returned
+    instead of two
+    """
+    if df is None and processed_barcodes is None:
+        print("Please run process_data() prior to calling this function or provide a dataframe")
+        return
+
+    log_df = np.log2(df["rel_wt"])
+
+    gen_times = {"d1": [0, 3.14, 5.14], "d2": [0, 1.76, 4.02]}
+
+    print("regressing...", flush=True)
+    df = log_df.stack("days").apply(lambda ys: _linregress_func(gen_times[ys.name[-1]], ys), axis=1)
+
+    print("thresholding using stderr <0.1 required for all days")
+    df = df.unstack("days")
+    before = len(df)
+    df = df[df[df["stderr"] < 0.1]["stderr"].count(axis=1) == len(df["stderr"].columns)]
+    print("discarding {} barcodes...".format(before - len(df)))
+    if average_days:
+        df = df["slope"].mean(axis=1)
+        df.name = "avg_slope"
+        return df
+    return df["slope"]
