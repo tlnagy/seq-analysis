@@ -13,6 +13,7 @@ import pickle
 import numpy as np
 import scipy.stats
 
+og_filepath = None
 raw_barcode_data = None
 mapped_barcode_data = None
 processed_barcodes = None
@@ -23,6 +24,8 @@ def map_dataset(csv_filepath):
     Loads raw demultiplexed read csv and maps it onto the barcode-mutant
     pairing. Does not process the data further.
     """
+    global og_filepath
+    og_filepath = csv_filepath
     global raw_barcode_data
     raw_barcode_data = pd.read_csv(csv_filepath)
     num_unique_reads = len(raw_barcode_data)
@@ -36,7 +39,7 @@ def map_dataset(csv_filepath):
     barcode_mutant_map["barcodes"] = barcode_mutant_map["barcodes"].astype(np.str)
 
     # split out days and timepoints into separate columns
-    raw_barcode_data[["days","timepoints"]] = raw_barcode_data["exp"].str.replace(r"t", "_t").str.split("_", expand=True)
+    raw_barcode_data[["days", "timepoints"]] = raw_barcode_data["exp"].str.replace(r"t", "_t").str.split("_", expand=True)
 
     barcode_mutant_map["WT"] = barcode_mutant_map["codons"] == "WT"
     # add dummy value for WT barcodes
@@ -60,7 +63,7 @@ def map_dataset(csv_filepath):
 
 
 def process_data(csv_filepath = "et0h_barcodes_to_count.csv"):
-    if mapped_barcode_data is None:
+    if mapped_barcode_data is None or og_filepath != csv_filepath:
         print("Data not yet loaded, loading now...\n", flush=True)
         map_dataset(csv_filepath)
 
@@ -73,7 +76,7 @@ def process_data(csv_filepath = "et0h_barcodes_to_count.csv"):
 
     idx = pd.IndexSlice
     # Throw out barcodes that have no counts in at least one experiment
-    processed_barcodes = processed_barcodes[pd.notnull(processed_barcodes.loc[:, idx["counts"]]).sum(axis=1) == 6]
+    processed_barcodes = processed_barcodes[pd.notnull(processed_barcodes.loc[:, idx["counts"]]).sum(axis=1) == len(processed_barcodes.columns)]
 
     before = len(processed_barcodes)
     # Throw out values that have a count 1 in any experiment
@@ -83,7 +86,9 @@ def process_data(csv_filepath = "et0h_barcodes_to_count.csv"):
     sums = processed_barcodes["counts"].sum()
 
     # create a new multiindexed column called rel_freq
-    new_cols = pd.MultiIndex.from_product([["rel_freq"], ["d1", "d2"], ["t0", "t1", "t2"]])
+    new_col_names = list(processed_barcodes.columns.levels)
+    new_col_names[0] = "rel_freq"
+    new_cols = pd.MultiIndex.from_product(new_col_names)
     normed_df = processed_barcodes.loc[:, idx["counts"]]/sums
     normed_df = pd.DataFrame(normed_df.values, index=normed_df.index, columns=new_cols)
 
@@ -94,8 +99,10 @@ def process_data(csv_filepath = "et0h_barcodes_to_count.csv"):
     medians = processed_barcodes.loc[idx[:, "WT"], idx["rel_freq"]].median()
 
     # create a new multiindexed column called rel_wt
+    new_col_names = list(processed_barcodes.columns.levels)
+    new_col_names[0] = "rel_wt"
+    new_cols = pd.MultiIndex.from_product(new_col_names)
     normed_df = processed_barcodes.loc[:, idx["rel_freq"]].divide(medians)
-    new_cols = pd.MultiIndex.from_product([["rel_wt"], ["d1", "d2"], ["t0", "t1", "t2"]])
     normed_df = pd.DataFrame(normed_df.values, index=normed_df.index, columns=new_cols)
 
     #add new column
