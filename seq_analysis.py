@@ -1,3 +1,12 @@
+from __future__ import print_function, division
+import warnings
+import sys
+try:
+    import platform
+    if platform.python_version().startswith('2'):
+        warnings.warn("Python 2 is old and yucky, please use 3", RuntimeWarning)
+except ImportError:
+    sys.exit(2)
 from Bio.Seq import Seq
 import pandas as pd
 import pickle
@@ -5,6 +14,7 @@ import numpy as np
 
 raw_barcode_data = None
 mapped_barcode_data = None
+
 
 def map_dataset(csv_filepath):
     """
@@ -47,10 +57,10 @@ def map_dataset(csv_filepath):
     return raw_barcode_data, mapped_barcode_data
 
 
-def process_data():
+def process_data(csv_filepath = "et0h_barcodes_to_count.csv"):
     if mapped_barcode_data is None:
         print("Data not yet loaded, loading now...\n")
-        map_dataset("et0h_barcodes_to_count.csv")
+        map_dataset(csv_filepath)
 
     # transform data
     df = mapped_barcode_data.pivot_table(index=["days", "timepoints", "barcodes", "codons","amino acids", "positions"],
