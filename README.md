@@ -12,7 +12,9 @@ follows:
 %autoreload 2
 
 import seq_analysis as seq
-df = seq.process_data()
+_, mapped_barcode_data = seq.map_dataset("et0h_barcodes_to_count.csv")
+processed_barcodes = seq.process_data(mapped_barcode_data)
+df = seq.regress(processed_barcodes)
 df
 ```
 

@@ -13,20 +13,12 @@ import pickle
 import numpy as np
 import scipy.stats
 
-og_filepath = None
-raw_barcode_data = None
-mapped_barcode_data = None
-processed_barcodes = None
-
 
 def map_dataset(csv_filepath):
     """
     Loads raw demultiplexed read csv and maps it onto the barcode-mutant
     pairing. Does not process the data further.
     """
-    global og_filepath
-    og_filepath = csv_filepath
-    global raw_barcode_data
     raw_barcode_data = pd.read_csv(csv_filepath)
     num_unique_reads = len(raw_barcode_data)
     unique_read_count_total = raw_barcode_data["counts"].sum()
@@ -47,7 +39,6 @@ def map_dataset(csv_filepath):
     barcode_mutant_map.loc[~barcode_mutant_map["WT"], "codons"] = barcode_mutant_map.loc[~barcode_mutant_map["WT"], "codons"].apply(lambda x: str(Seq(x).transcribe()))
     barcode_mutant_map.loc[~barcode_mutant_map["WT"], "amino acids"] = barcode_mutant_map.loc[~barcode_mutant_map["WT"], "codons"].apply(lambda x: str(Seq(x).translate()))
 
-    global mapped_barcode_data
     mapped_barcode_data = raw_barcode_data.merge(barcode_mutant_map, on="barcodes", how="inner")
     mapped_barcode_data["positions"] = mapped_barcode_data["positions"].astype(np.int)
     mapped_barcode_data.index.name = "idxs"
@@ -62,12 +53,7 @@ def map_dataset(csv_filepath):
     return raw_barcode_data, mapped_barcode_data
 
 
-def process_data(csv_filepath = "et0h_barcodes_to_count.csv"):
-    if mapped_barcode_data is None or og_filepath != csv_filepath:
-        print("Data not yet loaded, loading now...\n", flush=True)
-        map_dataset(csv_filepath)
-
-    global processed_barcodes
+def process_data(mapped_barcode_data):
     # transform data
     processed_barcodes = mapped_barcode_data.pivot_table(index=["days", "timepoints", "barcodes", "codons","amino acids", "positions"],
                                                          values=["counts", "rel_freq", "rel_wt"])
