@@ -102,7 +102,7 @@ def _linregress_func(xs, ys):
                      index=["slope", "stderr", "r^2", "intercept"], name="stats")
 
 
-def regress(df=None, average_days=False, gen_times={"d1": [0, 3.14, 5.14], "d2": [0, 1.76, 4.02]}):
+def regress(df=None, gen_times={"d1": [0, 3.14, 5.14], "d2": [0, 1.76, 4.02]}):
     """
     Runs a linear regression across timepoints and returns a dataframe with the slopes
     If average_days is True then the two days will be averaged and one value returned
@@ -122,8 +122,27 @@ def regress(df=None, average_days=False, gen_times={"d1": [0, 3.14, 5.14], "d2":
     before = len(df)
     df = df[df[df["stderr"] < 0.1]["stderr"].count(axis=1) == len(df["stderr"].columns)]
     print("discarding {} barcodes...".format(before - len(df)))
-    if average_days:
-        df = df["slope"].mean(axis=1)
-        df.name = "avg_slope"
-        return df
     return df["slope"]
+
+
+def get_sig_codonpos(df, single_bc_cutoff=0.02, pval_cutoff=0.05):
+    """
+    Returns codon-positions that pass filtering. Filters using a 2 sample t-test if
+    there are more than 1 unique barcodes mapped to a codon-position, otherwise uses
+    a distance cutoff. Both filtering cutoffs can be modified by changing the respective
+    parameter.
+    """
+
+    def sig_filter(d1, d2):
+        if len(d1) == 1 and (float(d1) - float(d2))**2 > single_bc_cutoff:
+            return pd.Series({"size":len(d1)})
+        pval = np.nan
+        if len(d1) > 1:
+            pval = scipy.stats.ttest_ind(d1, d2)[1]
+            if pval < pval_cutoff:
+                return pd.Series({"size":len(d1), "pval":pval})
+        return pd.Series({"mean":pd.concat([d1, d2]).mean(), "size":len(d1), "pval":pval})
+
+    df = df.groupby(level=["codons", "positions"]).apply(lambda x: sig_filter(x["d1"], x["d2"])).unstack(level=-1)
+    return df.loc[~pd.isnull(df["mean"]), :]
+
