@@ -125,12 +125,16 @@ def regress(df=None, gen_times={"d1": [0, 3.14, 5.14], "d2": [0, 1.76, 4.02]}):
     return df["slope"]
 
 
-def get_sig_codonpos(df, single_bc_cutoff=0.02, pval_cutoff=0.05):
+def groupby_filter(df, levels=["codons", "positions"], single_bc_cutoff=0.02, pval_cutoff=0.05):
     """
-    Returns codon-positions that pass filtering. Filters using a 2 sample t-test if
-    there are more than 1 unique barcodes mapped to a codon-position, otherwise uses
+    Returns a dataframe of groups that pass filtering. Filters using a 2 sample t-test if
+    there are more than 1 unique barcodes mapped to a group, otherwise uses
     a distance cutoff. Both filtering cutoffs can be modified by changing the respective
     parameter.
+
+    Parameters:
+    df, pd.DataFrame: the data
+    levels, list(str): the indices to group together
     """
 
     def sig_filter(d1, d2):
@@ -143,6 +147,6 @@ def get_sig_codonpos(df, single_bc_cutoff=0.02, pval_cutoff=0.05):
                 return pd.Series({"size":len(d1), "pval":pval})
         return pd.Series({"mean":pd.concat([d1, d2]).mean(), "size":len(d1), "pval":pval})
 
-    df = df.groupby(level=["codons", "positions"]).apply(lambda x: sig_filter(x["d1"], x["d2"])).unstack(level=-1)
+    df = df.groupby(level=levels).apply(lambda x: sig_filter(x["d1"], x["d2"])).unstack(level=-1)
     return df.loc[~pd.isnull(df["mean"]), :]
 
