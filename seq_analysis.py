@@ -62,7 +62,9 @@ def process_data(mapped_barcode_data):
 
     idx = pd.IndexSlice
     # Throw out barcodes that have no counts in at least one experiment
+    before = len(processed_barcodes)
     processed_barcodes = processed_barcodes[pd.notnull(processed_barcodes.loc[:, idx["counts"]]).sum(axis=1) == len(processed_barcodes.columns)]
+    print("\nDiscarding {} barcodes that had a count of 0 in at least one timepoint".format(before-len(processed_barcodes)))
 
     before = len(processed_barcodes)
     # Throw out values that have a count 1 in any experiment
