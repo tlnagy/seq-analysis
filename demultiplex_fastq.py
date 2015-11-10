@@ -13,7 +13,7 @@ group_exp_barcode_map = primers[~pd.isnull(primers["group"])].set_index("Indexin
 exp, group = group_exp_barcode_map["exp"], group_exp_barcode_map["group"]
 data = {key:defaultdict(int) for key in group}
 
-with open(filename) as fastq_file:
+with open(filename) as fastq_file, open(filename+".log", "w") as logfile:
     lines = enumerate(fastq_file)
     for idx, line in lines:
         header = line
@@ -24,7 +24,7 @@ with open(filename) as fastq_file:
         barcode = seq[:18]
 
         if index in group:
-            print(group[index])
+            print(group[index], file=logfile)
             data[index][barcode] += 1
 
 df = pd.DataFrame([exp, group, data]).T
