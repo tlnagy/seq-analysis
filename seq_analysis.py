@@ -61,15 +61,21 @@ def process_data(mapped_barcode_data):
     processed_barcodes = processed_barcodes.unstack("days").unstack("timepoints")
 
     idx = pd.IndexSlice
-    # Throw out barcodes that have no counts in at least one experiment
+    # Throw out barcodes on a per day basis if they have zero counts either
     before = len(processed_barcodes)
+
+    # consider days independently
+    processed_barcodes = processed_barcodes.stack("days")
     processed_barcodes = processed_barcodes[pd.notnull(processed_barcodes.loc[:, idx["counts"]]).sum(axis=1) == len(processed_barcodes.columns)]
-    print("\nDiscarding {} barcodes that had a count of 0 in at least one timepoint".format(before-len(processed_barcodes)))
+    processed_barcodes = processed_barcodes.stack("timepoints").unstack("days").unstack("timepoints")
+    print("\nDiscarding {} barcodes on days where they had a count of 0".format(before-len(processed_barcodes)))
 
     before = len(processed_barcodes)
-    # Throw out values that have a count 1 in any experiment
+    # Throw out values that have a count 1 in any experiment on a per day basis
+    processed_barcodes = processed_barcodes.stack("days")
     processed_barcodes = processed_barcodes[processed_barcodes[processed_barcodes == 1].count(axis=1) == 0]
-    print("\nDiscarding {} barcodes that had a count of 1 at any timepoint".format(before-len(processed_barcodes)))
+    processed_barcodes = processed_barcodes.stack("timepoints").unstack("days").unstack("timepoints")
+    print("\nDiscarding {} barcodes on days that had a count of 1 at any timepoint".format(before-len(processed_barcodes)))
 
     sums = processed_barcodes["counts"].sum()
 
@@ -83,7 +89,7 @@ def process_data(mapped_barcode_data):
     # add the new column
     processed_barcodes = pd.concat([processed_barcodes, normed_df], axis=1)
 
-    #calculate medians for rel_freq
+    # calculate medians for rel_freq
     medians = processed_barcodes.loc[idx[:, "WT"], idx["rel_freq"]].median()
 
     # create a new multiindexed column called rel_wt
@@ -93,7 +99,7 @@ def process_data(mapped_barcode_data):
     normed_df = processed_barcodes.loc[:, idx["rel_freq"]].divide(medians)
     normed_df = pd.DataFrame(normed_df.values, index=normed_df.index, columns=new_cols)
 
-    #add new column
+    # add new column
     processed_barcodes = pd.concat([processed_barcodes, normed_df], axis=1)
     return processed_barcodes
 
