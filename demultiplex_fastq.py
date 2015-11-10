@@ -36,4 +36,5 @@ df.drop("data", axis=1, inplace=True)
 results = df.reset_index().merge(df2.stack("barcodes").reset_index(), on="index").set_index(["group", "index", "exp", "barcodes"])
 results.columns = ["counts"]
 results.reset_index().drop("index", axis=1)
+results.to_csv(filename+".csv")
 
