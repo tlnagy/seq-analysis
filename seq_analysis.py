@@ -104,12 +104,6 @@ def process_data(mapped_barcode_data):
     return processed_barcodes
 
 
-def _linregress_func(xs, ys):
-    slope, intercept, r, p, stderr = scipy.stats.linregress(xs, ys)
-    return pd.Series({"slope": slope, "r^2": r**2, "intercept": intercept, "stderr": stderr},
-                     index=["slope", "stderr", "r^2", "intercept"], name="stats")
-
-
 def regress(df, gen_times={"d1": [0, 3.14, 5.14], "d2": [0, 1.76, 4.02]}):
     """
     Runs a linear regression across timepoints and returns a dataframe with the slopes
@@ -118,13 +112,17 @@ def regress(df, gen_times={"d1": [0, 3.14, 5.14], "d2": [0, 1.76, 4.02]}):
     """
     log_df = np.log2(df["rel_wt"])
 
+    def _linregress_func(xs, ys):
+        slope, intercept, r, p, stderr = scipy.stats.linregress(xs, ys)
+        return pd.Series({"slope": slope, "r^2": r**2, "intercept": intercept, "stderr": stderr},
+                         index=["slope", "stderr", "r^2", "intercept"], name="stats")
+
     print("regressing...\n", flush=True)
     df = log_df.stack("days").apply(lambda ys: _linregress_func(gen_times[ys.name[-1]], ys), axis=1)
 
     print("thresholding using stderr <0.1 required for all days")
-    df = df.unstack("days")
-    before = len(df)
-    df = df[df[df["stderr"] < 0.1]["stderr"].count(axis=1) == len(df["stderr"].columns)]
+    before = len(df.unstack("days"))
+    df = df[df["stderr"] < 0.1].unstack("days")
     print("discarding {} barcodes...".format(before - len(df)))
     return df["slope"]
 
