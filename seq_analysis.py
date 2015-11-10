@@ -104,16 +104,12 @@ def _linregress_func(xs, ys):
                      index=["slope", "stderr", "r^2", "intercept"], name="stats")
 
 
-def regress(df=None, gen_times={"d1": [0, 3.14, 5.14], "d2": [0, 1.76, 4.02]}):
+def regress(df, gen_times={"d1": [0, 3.14, 5.14], "d2": [0, 1.76, 4.02]}):
     """
     Runs a linear regression across timepoints and returns a dataframe with the slopes
     If average_days is True then the two days will be averaged and one value returned
     instead of two. gen_times is a dictionary mapping days to their  list of generation times
     """
-    if df is None and processed_barcodes is None:
-        print("Please run process_data() prior to calling this function or provide a dataframe")
-        return
-
     log_df = np.log2(df["rel_wt"])
 
     print("regressing...\n", flush=True)
