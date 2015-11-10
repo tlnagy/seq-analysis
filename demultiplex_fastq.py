@@ -10,7 +10,7 @@ primers["group"] = primers["Sample"].str.split(" ").str.get(0)
 primers = primers[["group", "exp", "Indexing BC"]]
 
 group_exp_barcode_map = primers[~pd.isnull(primers["group"])].set_index("Indexing BC").to_dict()
-exp, group = [group_exp_barcode_map[key] for key in group_exp_barcode_map]
+exp, group = group_exp_barcode_map["exp"], group_exp_barcode_map["group"]
 data = {key:defaultdict(int) for key in group}
 
 with open(filename) as fastq_file:
