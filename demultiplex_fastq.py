@@ -13,8 +13,8 @@ group_exp_barcode_map = primers[~pd.isnull(primers["group"])].set_index("Indexin
 group, exp = [group_exp_barcode_map[key] for key in group_exp_barcode_map]
 data = {key:defaultdict(int) for key in group}
 
-with open(filename) as lane1_file:
-    lines = enumerate(lane1_file)
+with open(filename) as fastq_file:
+    lines = enumerate(fastq_file)
     for idx, line in lines:
         header = line
         _, seq = next(lines, (None, None))
