@@ -19,12 +19,14 @@ def map_dataset(csv_filepath):
     Loads raw demultiplexed read csv and maps it onto the barcode-mutant
     pairing. Does not process the data further.
     """
+    print("Loading dataset...", end="", flush=True)
     raw_barcode_data = pd.read_csv(csv_filepath)
     num_unique_reads = len(raw_barcode_data)
     unique_read_count_total = raw_barcode_data["counts"].sum()
 
     with open("allele_dic_with_WT.pkl", "rb") as f:
         barcode_mutant_map = pd.DataFrame(pickle.load(f)).T.reset_index()
+    print("Done.\n\nMapping...", flush=True)
 
     barcode_mutant_map.columns = ["barcodes", "positions", "codons"]
     barcode_mutant_map["barcodes"] = barcode_mutant_map["barcodes"].apply(lambda x: str(Seq(x).reverse_complement()))
@@ -54,6 +56,7 @@ def map_dataset(csv_filepath):
 
 
 def process_data(mapped_barcode_data):
+    print("\nProcessing data...", flush=True)
     # transform data
     processed_barcodes = mapped_barcode_data.pivot_table(index=["days", "timepoints", "barcodes", "codons","amino acids", "positions"],
                                                          values=["counts", "rel_freq", "rel_wt"])
@@ -75,10 +78,10 @@ def process_data(mapped_barcode_data):
     processed_barcodes = processed_barcodes.stack("days")
     processed_barcodes = processed_barcodes[processed_barcodes[processed_barcodes == 1].count(axis=1) == 0]
     processed_barcodes = processed_barcodes.stack("timepoints").unstack("days").unstack("timepoints")
-    print("\nDiscarding {} barcodes on days that had a count of 1 at any timepoint".format(before-len(processed_barcodes)))
+    print("Discarding {} barcodes on days that had a count of 1 at any timepoint".format(before-len(processed_barcodes)))
 
     sums = processed_barcodes["counts"].sum()
-
+    print("\nNormalizing dataset...", end="", flush=True)
     # create a new multiindexed column called rel_freq
     new_col_names = list(processed_barcodes.columns.levels)
     new_col_names[0] = "rel_freq"
@@ -101,6 +104,7 @@ def process_data(mapped_barcode_data):
 
     # add new column
     processed_barcodes = pd.concat([processed_barcodes, normed_df], axis=1)
+    print("Done.", flush=True)
     return processed_barcodes
 
 
@@ -117,10 +121,10 @@ def regress(df, gen_times={"d1": [0, 3.14, 5.14], "d2": [0, 1.76, 4.02]}):
         return pd.Series({"slope": slope, "r^2": r**2, "intercept": intercept, "stderr": stderr},
                          index=["slope", "stderr", "r^2", "intercept"], name="stats")
 
-    print("regressing...\n", flush=True)
+    print("\nRegressing on data...", end="", flush=True)
     df = log_df.stack("days").apply(lambda ys: _linregress_func(gen_times[ys.name[-1]], ys), axis=1)
 
-    print("thresholding using stderr <0.1 required for all days")
+    print("Done.\n\nThresholding using stderr <0.1 required for all days", flush=True)
     before = len(df.unstack("days"))
     df = df[df["stderr"] < 0.1].unstack("days")
     print("discarding {} barcodes...".format(before - len(df)))
@@ -138,6 +142,7 @@ def groupby_filter(df, levels=["codons", "positions"], single_bc_cutoff=0.02, pv
     df, pd.DataFrame: the data
     levels, list(str): the indices to group together
     """
+    print("\nGrouping and filtering...", end="", flush=True)
 
     def sig_filter(d1, d2):
         if len(d1) == 1 and (float(d1) - float(d2))**2 > single_bc_cutoff:
@@ -150,5 +155,6 @@ def groupby_filter(df, levels=["codons", "positions"], single_bc_cutoff=0.02, pv
         return pd.Series({"mean":pd.concat([d1, d2]).mean(), "size":len(d1), "pval":pval})
 
     df = df.groupby(level=levels).apply(lambda x: sig_filter(x["d1"], x["d2"])).unstack(level=-1)
+    print("Done.", flush=True)
     return df.loc[~pd.isnull(df["mean"]), :]
 
