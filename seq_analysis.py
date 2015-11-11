@@ -1,12 +1,13 @@
 from __future__ import print_function, division
 import warnings
-import sys
+import sys, os
 try:
     import platform
     if platform.python_version().startswith('2'):
         warnings.warn("Python 2 is old and yucky, please use 3", RuntimeWarning)
 except ImportError:
     sys.exit(2)
+import difflib
 from Bio.Seq import Seq
 import pandas as pd
 import pickle
@@ -14,16 +15,27 @@ import numpy as np
 import scipy.stats
 
 
-def map_dataset(csv_filepath):
+def map_dataset(hdf5_datastorepath, group_query="Et0H", allele_pkl_path=None):
     """
-    Loads raw demultiplexed read csv and maps it onto the barcode-mutant
+    Loads raw demultiplexed read h5 file and maps it onto the barcode-mutant
     pairing. Does not process the data further.
     """
-    raw_barcode_data = pd.read_csv(csv_filepath)
+    raw_barcode_data = pd.read_hdf(hdf5_datastorepath, key="grouped_data")
+    fuzzy_matching = {group.lower():group for group in raw_barcode_data.index.levels[0]}
+    closest_matches = difflib.get_close_matches(group_query.lower(), fuzzy_matching.keys())
+    try:
+        group_name = fuzzy_matching[closest_matches[0]]
+    except IndexError:
+        print("Use one of the following: {}".format(list(fuzzy_matching.values())))
+        return None, None
+    idx = pd.IndexSlice
+    raw_barcode_data = raw_barcode_data.loc[idx[group_name], :].reset_index().drop("index", axis=1)
     num_unique_reads = len(raw_barcode_data)
     unique_read_count_total = raw_barcode_data["counts"].sum()
 
-    with open("allele_dic_with_WT.pkl", "rb") as f:
+    if allele_pkl_path is None:
+        allele_pkl_path = os.path.join(*[os.path.split(hdf5_datastorepath)[0], "allele_dic_with_WT.pkl"])
+    with open(allele_pkl_path, "rb") as f:
         barcode_mutant_map = pd.DataFrame(pickle.load(f)).T.reset_index()
 
     barcode_mutant_map.columns = ["barcodes", "positions", "codons"]
