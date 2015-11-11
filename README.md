@@ -11,11 +11,16 @@ follows:
 %load_ext autoreload
 %autoreload 2
 
+import sys
+sys.path.append('seq-analysis/')
 import seq_analysis as seq
-_, mapped_barcode_data = seq.map_dataset("et0h_barcodes_to_count.csv")
-processed_barcodes = seq.process_data(mapped_barcode_data)
-df = seq.regress(processed_barcodes)
-df
+
+group_name = "Et0H"
+_, mapped_barcode_data = seq.map_dataset("seq-analysis/lanes_new_combined.fastq.h5", group_name)
+processed = seq.process_data(mapped_barcode_data)
+regressed = seq.regress(processed, group_name, "seq-analysis/truseq_primers.csv")
+filtered = seq.groupby_filter(regressed)
+filtered
 ```
 
 ## Structure
