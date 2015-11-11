@@ -13,23 +13,24 @@ import pandas as pd
 import pickle
 import numpy as np
 import scipy.stats
+import utils
 
 
-def map_dataset(hdf5_datastorepath, group_query="Et0H", allele_pkl_path=None):
+def map_dataset(hdf5_datastorepath, group_name, allele_pkl_path=None):
     """
     Loads raw demultiplexed read h5 file and maps it onto the barcode-mutant
     pairing. Does not process the data further.
     """
     raw_barcode_data = pd.read_hdf(hdf5_datastorepath, key="grouped_data")
-    fuzzy_matching = {group.lower():group for group in raw_barcode_data.index.levels[0]}
-    closest_matches = difflib.get_close_matches(group_query.lower(), fuzzy_matching.keys())
+    fuzzy_matching = {group.lower(): group for group in raw_barcode_data.index.levels[0]}
+    closest_matches = difflib.get_close_matches(group_name.lower(), fuzzy_matching.keys())
     try:
-        group_name = fuzzy_matching[closest_matches[0]]
+        matched_group = fuzzy_matching[closest_matches[0]]
     except IndexError:
         print("Use one of the following: {}".format(list(fuzzy_matching.values())))
         return None, None
     idx = pd.IndexSlice
-    raw_barcode_data = raw_barcode_data.loc[idx[group_name], :].reset_index().drop("index", axis=1)
+    raw_barcode_data = raw_barcode_data.loc[idx[matched_group], :].reset_index().drop("index", axis=1)
     num_unique_reads = len(raw_barcode_data)
     unique_read_count_total = raw_barcode_data["counts"].sum()
 
