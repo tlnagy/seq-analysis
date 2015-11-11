@@ -165,6 +165,8 @@ def groupby_filter(df, levels=["codons", "positions"], single_bc_cutoff=0.02, pv
     df, pd.DataFrame: the data
     levels, list(str): the indices to group together
     """
+    if df is None:
+        return
     print("\nGrouping and filtering...", end="", flush=True)
 
     def sig_filter(d1, d2):
