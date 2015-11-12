@@ -167,14 +167,15 @@ def groupby_filter(df, levels=["codons", "positions"], single_bc_cutoff=0.02, pv
     print("\nGrouping and filtering...", end="", flush=True)
 
     def sig_filter(d1, d2):
-        if len(d1) == 1 and (float(d1) - float(d2))**2 > single_bc_cutoff:
-            return pd.Series({"size":len(d1)})
+        d1, d2 = d1[~pd.isnull(d1)], d2[~pd.isnull(d2)]
+        if (len(d1) == 1 and len(d2) == 1) and (float(d1) - float(d2))**2 > single_bc_cutoff:
+            return pd.Series({"size_d1": len(d1), "size_d2": len(d2)})
         pval = np.nan
-        if len(d1) > 1:
+        if len(d1) > 1 or len(d2) > 1:
             pval = scipy.stats.ttest_ind(d1, d2)[1]
             if pval < pval_cutoff:
-                return pd.Series({"size":len(d1), "pval":pval})
-        return pd.Series({"mean":pd.concat([d1, d2]).mean(), "size":len(d1), "pval":pval})
+                return pd.Series({"size_d1": len(d1), "size_d2": len(d2), "pval":pval})
+        return pd.Series({"mean": pd.concat([d1, d2]).mean(), "size_d1": len(d1), "size_d2": len(d2), "pval": pval})
 
     df = df.groupby(level=levels).apply(lambda x: sig_filter(x["d1"], x["d2"])).unstack(level=-1)
     print("Done.", flush=True)
