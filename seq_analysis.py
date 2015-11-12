@@ -31,7 +31,7 @@ def map_dataset(hdf5_datastorepath, group_name, allele_pkl_path=None):
         print("Use one of the following: {}".format(list(fuzzy_matching.values())))
         return None, None
     idx = pd.IndexSlice
-    raw_barcode_data = raw_barcode_data.loc[idx[matched_group], :].reset_index().drop("index", axis=1)
+    raw_barcode_data = raw_barcode_data.loc[idx[matched_group], :].reset_index()
     
     num_unique_reads = len(raw_barcode_data)
     unique_read_count_total = raw_barcode_data["counts"].sum()
@@ -45,9 +45,6 @@ def map_dataset(hdf5_datastorepath, group_name, allele_pkl_path=None):
     barcode_mutant_map.columns = ["barcodes", "positions", "codons"]
     barcode_mutant_map["barcodes"] = barcode_mutant_map["barcodes"].apply(lambda x: str(Seq(x).reverse_complement()))
     barcode_mutant_map["barcodes"] = barcode_mutant_map["barcodes"].astype(np.str)
-
-    # split out days and timepoints into separate columns
-    raw_barcode_data[["days", "timepoints"]] = raw_barcode_data["exp"].str.replace(r"t", "_t").str.split("_", expand=True)
 
     barcode_mutant_map["WT"] = barcode_mutant_map["codons"] == "WT"
     # add dummy value for WT barcodes
@@ -63,7 +60,7 @@ def map_dataset(hdf5_datastorepath, group_name, allele_pkl_path=None):
     print("Percent of total reads mapped: {:.2%}\n".format(mapped_barcode_data["counts"].sum()/unique_read_count_total))
 
     print("group   % of total barcodes found")
-    for name, group in mapped_barcode_data.groupby("exp"):
+    for name, group in mapped_barcode_data.groupby(["days", "timepoints"]):
             print("{}    {:.2%}".format(name, len(group)/len(barcode_mutant_map)))
 
     return raw_barcode_data, mapped_barcode_data
