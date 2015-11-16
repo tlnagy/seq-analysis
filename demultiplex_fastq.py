@@ -1,5 +1,6 @@
 from collections import defaultdict
 import pandas as pd
+import numpy as np
 from sys import argv
 
 _, filename = argv
@@ -35,7 +36,12 @@ df2.index.name = "index"
 df.drop("data", axis=1, inplace=True)
 results = df.reset_index().merge(df2.stack("barcodes").reset_index(), on="index").set_index(["group", "index", "exp", "barcodes"])
 results.columns = ["counts"]
-results.reset_index().drop("index", axis=1)
+results.reset_index(level="exp", inplace=True)
+results[["days", "timepoints"]] = results["exp"].str.replace(r"t", "_t").str.split("_", expand=True)
+results = results.reset_index().drop(["index", "exp"], axis=1)
+str_cols = ["group", "days", "timepoints", "barcodes"]
+results[str_cols] = results[str_cols].astype(np.str)
+results.set_index(str_cols, inplace=True)
 print(results)
-results.to_hdf(filename+".h5", key="grouped_data", mode="w", complevel=9)
+results.to_hdf(filename+".h5", key="raw_barcode_data", mode="w", complevel=9)
 
