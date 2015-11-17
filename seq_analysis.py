@@ -75,13 +75,11 @@ def process_data(hdf5_datastorepath, allele_pkl_path = None, experimental_info_c
 
     all_tp = rel_wt_gen_times[np.all(pd.notnull(rel_wt_gen_times["rel_wt"]), axis=1)]
 
-    return all_tp
+    start = timer()
+    slopes = groupby_parallel(all_tp.groupby(level=["group", "days", "amino acids"]), linregress_df)
+    print("\nRegressed on {} slopes in {:.1f}s".format(len(slopes), timer() - start))
 
-    # start = timer()
-    # slopes = groupby_parallel(all_tp.groupby(level=["group", "days", "amino acids"]), linregress_df)
-    # print("\nRegressed on {} slopes in {:.1f}s".format(len(slopes), timer() - start))
-    #
-    # return slopes
+    return slopes
 
 
 def linregress_wrapper(xs, ys):
