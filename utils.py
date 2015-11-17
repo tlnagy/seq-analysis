@@ -11,7 +11,7 @@ def load_gen_times(df, experimental_info_csv_path):
     :param experimental_info_csv_path:
     :return:
     """
-    primers = pd.read_csv("seq-analysis/truseq_primers.csv")
+    primers = pd.read_csv(experimental_info_csv_path)
     primers["exp"] = primers["Sample"].str.replace("Day", "d").str.replace(" T=", "t").str.split(" ").str.get(1)
     primers["group"] = primers["Sample"].str.split(" ").str.get(0)
     primers = primers[["group", "exp", "Generations"]]
