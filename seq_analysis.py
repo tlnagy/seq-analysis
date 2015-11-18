@@ -111,7 +111,7 @@ def linregress_df(args):
 
 def groupby_parallel(groupby_df, func):
     num_cpus = cpu_count()
-    print("\nUsing {} cpus to regress...\n\nPercent complete: ".format(num_cpus), end="")
+    print("\nUsing {} cpus in parallel...\n\nPercent complete: ".format(num_cpus), end="")
     with Pool(num_cpus) as pool:
         m = Manager()
         q = m.Queue()
@@ -125,34 +125,4 @@ def groupby_parallel(groupby_df, func):
         print("Percent complete: {:.0%}".format(1))
     return pd.concat(result.get())
 
-
-def groupby_filter(df, levels=["codons", "positions"], single_bc_cutoff=0.02, pval_cutoff=0.05):
-    """
-    Returns a dataframe of groups that pass filtering. Filters using a 2 sample t-test if
-    there are more than 1 unique barcodes mapped to a group, otherwise uses
-    a distance cutoff. Both filtering cutoffs can be modified by changing the respective
-    parameter.
-
-    Parameters:
-    df, pd.DataFrame: the data
-    levels, list(str): the indices to group together
-    """
-    if df is None:
-        return
-    print("\nGrouping and filtering...", end="", flush=True)
-
-    def sig_filter(d1, d2):
-        d1, d2 = d1[~pd.isnull(d1)], d2[~pd.isnull(d2)]
-        if (len(d1) == 1 or len(d2) == 1) and (d1.mean() - d2.mean())**2 > single_bc_cutoff:
-            return pd.Series({"size_d1": len(d1), "size_d2": len(d2)})
-        pval = np.nan
-        if len(d1) > 1 and len(d2) > 1:
-            pval = scipy.stats.ttest_ind(d1, d2)[1]
-            if pval < pval_cutoff:
-                return pd.Series({"size_d1": len(d1), "size_d2": len(d2), "pval":pval})
-        return pd.Series({"mean": pd.concat([d1, d2]).mean(), "size_d1": len(d1), "size_d2": len(d2), "pval": pval})
-
-    df = df.groupby(level=levels).apply(lambda x: sig_filter(x["d1"], x["d2"])).unstack(level=-1)
-    print("Done.", flush=True)
-    return df.loc[~pd.isnull(df["mean"]), :]
 
