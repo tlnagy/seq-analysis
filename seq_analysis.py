@@ -87,6 +87,15 @@ def process_data(hdf5_datastorepath, allele_pkl_path = None, experimental_info_c
     slopes = pd.concat([slopes, two_tp_slopes.to_frame()])
     slopes.sort_index(inplace=True)
 
+    # add counts data back onto the slope dataframe
+    slopes["data"] = "fitness"
+    slopes.set_index("data", append=True, inplace=True)
+    slopes = slopes.unstack("data").reorder_levels([1, 0], axis=1)
+    new_cols = pd.MultiIndex.from_product(processed_barcodes.columns.levels)
+    normed_df = processed_barcodes.loc[processed_barcodes.index.isin(slopes.index), idx["counts"]]
+    normed_df = pd.DataFrame(normed_df.values, index=normed_df.index, columns=new_cols)
+    slopes = pd.concat([slopes, normed_df], axis=1)
+
     return rel_wt_gen_times, slopes
 
 
