@@ -79,7 +79,15 @@ def process_data(hdf5_datastorepath, allele_pkl_path = None, experimental_info_c
     slopes = groupby_parallel(all_tp.groupby(level=["group", "days", "amino acids"]), linregress_df)
     print("\nRegressed on {} slopes in {:.1f}s".format(len(slopes), timer() - start))
 
-    return slopes
+    # handle barcodes that only show up in two timepoints
+    two_tp_only = rel_wt_gen_times[pd.isnull(rel_wt_gen_times["rel_wt"]).sum(axis=1) == 1]
+    deltas = two_tp_only.diff(axis=1)
+    two_tp_slopes = (deltas[("rel_wt", "t1")]/deltas[("Generations", "t1")])
+    two_tp_slopes.name = "slope"
+    slopes = pd.concat([slopes, two_tp_slopes.to_frame()])
+    slopes.sort_index(inplace=True)
+
+    return rel_wt_gen_times, slopes
 
 
 def linregress_wrapper(xs, ys):
