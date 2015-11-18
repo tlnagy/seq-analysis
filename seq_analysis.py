@@ -75,9 +75,7 @@ def process_data(hdf5_datastorepath, allele_pkl_path = None, experimental_info_c
 
     all_tp = rel_wt_gen_times[np.all(pd.notnull(rel_wt_gen_times["rel_wt"]), axis=1)]
 
-    start = timer()
     slopes = groupby_parallel(all_tp.groupby(level=["group", "days", "amino acids"]), linregress_df)
-    print("\nRegressed on {} slopes in {:.1f}s".format(len(slopes), timer() - start))
 
     # handle barcodes that only show up in two timepoints
     two_tp_only = rel_wt_gen_times[pd.isnull(rel_wt_gen_times["rel_wt"]).sum(axis=1) == 1]
@@ -113,6 +111,7 @@ def linregress_df(args):
 
 
 def groupby_parallel(groupby_df, func):
+    start = timer()
     num_cpus = cpu_count()
     print("\nUsing {} cpus in parallel...\n\nPercent complete: ".format(num_cpus), end="")
     with Pool(num_cpus) as pool:
@@ -126,6 +125,7 @@ def groupby_parallel(groupby_df, func):
             print("Percent complete: {:.0%} {}".format(size/len(groupby_df), elem), end="\r")
             time.sleep(0.25)
         print("Percent complete: {:.0%}".format(1))
+    print("\nProcessed on {} slopes in {:.1f}s".format(groupby_df.count().sum().max(), timer() - start))
     return pd.concat(result.get())
 
 
