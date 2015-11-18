@@ -21,6 +21,8 @@ slopes
 
 ## Setup
 
+### Code
+
 We're using Anaconda to manage all packages. First install Miniconda from
 <http://conda.pydata.org/miniconda.html>. Either Python 2 or Python 3 will
 work, because we will be creating a virtual environment. It should add the
@@ -32,6 +34,11 @@ conda create -n seqanalysis -y python=3 seaborn ipython-notebook biopython scipy
 source activate seqanalysis
 ipython notebook
 ```
+
+### Data
+
+The raw processed data is called `lanes_new_combined.fastq.h5` and it's
+located in the `et0h/data` folder on the derisilab105 server.
 
 ## Structure
 
