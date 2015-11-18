@@ -18,7 +18,7 @@ import itertools, time
 from timeit import default_timer as timer
 
 
-def process_data(hdf5_datastorepath, allele_pkl_path = None, experimental_info_csv_path=None):
+def process_data(hdf5_datastorepath, allele_pkl_path = None, experimental_info_csv_path=None, shuffle=False, seed=None):
     print("Loading data...", flush=True, end="")
     idx = pd.IndexSlice
     raw_barcode_data = pd.read_hdf(hdf5_datastorepath, key="grouped_data")
@@ -49,6 +49,20 @@ def process_data(hdf5_datastorepath, allele_pkl_path = None, experimental_info_c
 
     # Onion d1t2 is simply a repeat of t1 so we'll toss it
     processed_barcodes.loc[idx["Onion", "d1"], idx["counts", "t2"]] = np.nan
+
+    # shuffles the counts within each group, day, timepoint
+    if shuffle:
+        if seed is not None:
+            np.random.seed(seed)
+        print("\nShuffling...", flush=True, end="")
+        processed_barcodes = processed_barcodes.unstack("group").unstack("days")
+        count_values = processed_barcodes.values.T
+        list(map(np.random.shuffle, count_values))
+        processed_barcodes.loc[:, :] = count_values.T
+        processed_barcodes = processed_barcodes.stack("group").stack("days").reorder_levels([4, 5, 0, 1, 2, 3])
+        processed_barcodes.sort_index(inplace=True)
+        np.random.seed()
+        print("Done.", flush=True)
 
     # mapping transitions between timepoints, -1 indicates True to False aka NaN to not-NaN which should be eliminated
     # checks if any such transition occurs in a row
