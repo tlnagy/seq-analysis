@@ -55,11 +55,13 @@ def process_data(hdf5_datastorepath, allele_pkl_path = None, experimental_info_c
         if seed is not None:
             np.random.seed(seed)
         print("\nShuffling...", flush=True, end="")
-        processed_barcodes = processed_barcodes.unstack("group").unstack("days")
-        count_values = processed_barcodes.values.T
+        wts = processed_barcodes.loc[idx[:, :, :, "WT"], :]
+        no_wts = processed_barcodes[~processed_barcodes.index.isin(wts.index)].unstack("group").unstack("days")
+        count_values = no_wts.values.T
         list(map(np.random.shuffle, count_values))
-        processed_barcodes.loc[:, :] = count_values.T
-        processed_barcodes = processed_barcodes.stack("group").stack("days").reorder_levels([4, 5, 0, 1, 2, 3])
+        no_wts.loc[:, :] = count_values.T
+        no_wts = no_wts.stack("group").stack("days").reorder_levels([4, 5, 0, 1, 2, 3])
+        processed_barcodes = pd.concat([no_wts, wts])
         processed_barcodes.sort_index(inplace=True)
         np.random.seed()
         print("Done.", flush=True)
