@@ -18,7 +18,7 @@ import itertools, time
 from timeit import default_timer as timer
 
 
-def process_data(hdf5_datastorepath, allele_pkl_path = None, experimental_info_csv_path=None):
+def process_data(hdf5_datastorepath, allele_pkl_path = None, experimental_info_csv_path=None, hamming_correct=False):
     print("Loading data...", flush=True, end="")
     idx = pd.IndexSlice
     raw_barcode_data = pd.read_hdf(hdf5_datastorepath, key="grouped_data")
@@ -42,6 +42,9 @@ def process_data(hdf5_datastorepath, allele_pkl_path = None, experimental_info_c
 
     mapped_barcode_data = raw_barcode_data.merge(barcode_mutant_map, on="barcodes", copy=False)
     print("Done.", flush=True)
+
+    if hamming_correct:
+        mapped_barcode_data = utils.hamming_correct(raw_barcode_data, mapped_barcode_data, barcode_mutant_map)
 
     processed_barcodes = mapped_barcode_data.pivot_table(index=["group", "days", "timepoints", "barcodes", "codons","amino acids", "positions"],
                                                          values=["counts"])
