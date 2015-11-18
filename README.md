@@ -28,7 +28,7 @@ work, because we will be creating a virtual environment. It should add the
 make sure to add `conda`. Then run
 
 ```
-conda create -n seqanalysis -y python=3 seaborn ipython-notebook biopython
+conda create -n seqanalysis -y python=3 seaborn ipython-notebook biopython scipy scikit-learn
 source activate seqanalysis
 ipython notebook
 ```
