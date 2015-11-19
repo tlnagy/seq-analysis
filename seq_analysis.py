@@ -36,7 +36,7 @@ def process_data(hdf5_datastorepath, allele_pkl_path = None, experimental_info_c
 
     barcode_mutant_map["WT"] = barcode_mutant_map["codons"] == "WT"
     # add dummy value for WT barcodes
-    barcode_mutant_map["amino acids"] = "@"
+    barcode_mutant_map["amino acids"] = "WT"
     barcode_mutant_map.loc[~barcode_mutant_map["WT"], "codons"] = barcode_mutant_map.loc[~barcode_mutant_map["WT"], "codons"].apply(lambda x: str(Seq(x).transcribe()))
     barcode_mutant_map.loc[~barcode_mutant_map["WT"], "amino acids"] = barcode_mutant_map.loc[~barcode_mutant_map["WT"], "codons"].apply(lambda x: str(Seq(x).translate()))
 
@@ -97,7 +97,22 @@ def process_data(hdf5_datastorepath, allele_pkl_path = None, experimental_info_c
     normed_df = pd.DataFrame(normed_df.values, index=normed_df.index, columns=new_cols)
     slopes = pd.concat([slopes, normed_df], axis=1)
 
-    return rel_wt_gen_times, slopes
+    extra_funcs = {("fitness", "slope"):[len, np.std], ("counts", "t0"):np.sum}
+    weighted_avg_func = lambda x: (x[("fitness", "slope")]*np.log(x[("counts", "t0")])/np.log(x[("counts", "t0")]).sum()).sum()
+    extra_col_names = ["# unique barcodes", "stddev of slope", "sum of t0 reads"]
+
+    aa_weighted = slopes.groupby(level=["group", "days", "amino acids", "positions"]).apply(weighted_avg_func)
+    aa_weighted.name = "weighted mean slope"
+    aa_extra = slopes.groupby(level=["group", "days", "amino acids", "positions"]).agg(extra_funcs)
+    aa_extra.columns = extra_col_names
+    aa_weighted = pd.concat([aa_weighted, aa_extra], axis=1)
+    codons_weighted = slopes.groupby(level=["group", "days", "codons", "positions"]).apply(weighted_avg_func)
+    codons_weighted.name = "weighted mean slope"
+    codons_extra = slopes.groupby(level=["group", "days", "codons", "positions"]).agg(extra_funcs)
+    codons_extra.columns = extra_col_names
+    codons_weighted = pd.concat([codons_weighted, codons_extra], axis=1)
+
+    return slopes, codons_weighted, aa_weighted
 
 
 def linregress_wrapper(xs, ys):
