@@ -17,8 +17,6 @@ aa_weighted.set_index(["days", "amino acids", "positions"], append=True, inplace
 aa_weighted.loc["Et0H", "weighted mean slope"].unstack("days")
 ```
 
-which looks like:
-
 ## Setup
 
 ### Code
