@@ -4,20 +4,20 @@ ET0H's analysis pipeline for the ubiquitin sequencing data.
 
 ## Usage
 
-Ipython notebook is recommended for interacting with the data. Run as
-follows:
+Ipython notebook is recommended for interacting with the data. Assuming
+you are in the parent directory of `seq-analysis`, use as follows:
 
 ```python
-%load_ext autoreload
-%autoreload 2
-
-import sys
-sys.path.append('seq-analysis/')
-import seq_analysis as seq
-
-slopes = seq.process_data("seq-analysis/lanes_new_combined.fastq.h5")
-slopes
+import pandas as pd
+aa_weighted = pd.read_csv("seq-analysis/data/aa_weighted.csv", index_col=0)
+# convert to Multiindex
+aa_weighted.set_index(["days", "amino acids", "positions"], append=True, inplace=True)
+# getting only the Et0H weighted mean slope data and have the days in 
+# separate columns
+aa_weighted.loc["Et0H", "weighted mean slope"].unstack("days")
 ```
+
+which looks like:
 
 ## Setup
 
