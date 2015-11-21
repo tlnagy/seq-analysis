@@ -27,12 +27,11 @@ def calc_pvals(cc, k = 800):
 def calc_diff(fitnesses, group, control_day = 'd1', case_day='d2', n_sims = 800):
     '''
     Calculates the difference between case and control fitness values with p-values calculated by permuting the data across both.
-    TODO: Calculate p-value
     :param fitnesses: Pandas dataframe from seq_analysis of fitness values at either the codon or amino acid level
     :param group: The name of the group (e.g. PyND); set to None to calculate for all groups
     :param control_day: The name of the day corresponding to the control
     :param case_day: The name of the day corresponding to the perturbation
-    :n_simulations: The number of iterations to use in the permutation test
+    :n_simulations: The number of iterations to use in the permutation test; set to 0 to disable
     :return: A Pandas dataframe with columns [slope_control, slope_case, slope_diff, std_control, std_case, p_val]
     '''
     if group is not None:
@@ -53,5 +52,6 @@ def calc_diff(fitnesses, group, control_day = 'd1', case_day='d2', n_sims = 800)
     merged = pd.merge(control, case, how='inner', on=wanted_indices, suffixes=['_control', '_case'])
     merged.set_index(['codons', 'amino acids', 'positions'], inplace=True)
     merged['slope_diff'] = merged['slope_case'] - merged['slope_control']
-    calc_pvals(merged, n_sims)
+    if n_sims > 0:
+        calc_pvals(merged, n_sims)
     return merged
