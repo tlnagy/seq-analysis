@@ -9,7 +9,6 @@ except ImportError:
     sys.exit(2)
 from Bio.Seq import Seq
 import pandas as pd
-import pickle
 import numpy as np
 import scipy.stats
 import utils
@@ -19,27 +18,25 @@ from timeit import default_timer as timer
 
 
 def process_data(hdf5_datastorepath, allele_pkl_path = None, experimental_info_csv_path=None, hamming_correct=False, relative_fitness=True):
-    print("Loading data...", flush=True, end="")
+    '''
+    Calculates fitness from raw read counts.
+    :param hdf5_datastorepath: The location of the HDF5 FASTQ file.
+    :param allele_pkl_path: The location of the allele_dic_with_WT.pkl pickle file.
+    :param experimental_info_csv_path: The location of the truseq_primers.csv file.
+    :param hamming_correct: Run Hamming correction. Hamming distance is capped at 2, and only barcodes that map unambiguously to a single known barcode will be corrected.
+    :param relative_fitness: If true, barcode counts are normalized per-group, per-day, and per-timepoint by the WT fitness.
+    :return: A tuple (barcode fitness, codon fitness, amino acid fitness).
+    '''
+
     idx = pd.IndexSlice
+
+    print("Loading data...", flush=True, end="")
     raw_barcode_data = pd.read_hdf(hdf5_datastorepath, key="grouped_data")
-
-    if allele_pkl_path is None:
-        allele_pkl_path = os.path.join(*[os.path.split(hdf5_datastorepath)[0], "allele_dic_with_WT.pkl"])
-    with open(allele_pkl_path, "rb") as f:
-        barcode_mutant_map = pd.DataFrame(pickle.load(f)).T.reset_index()
-    print("Done.\n\nMapping...", flush=True, end="")
-
-    barcode_mutant_map.columns = ["barcodes", "positions", "codons"]
-    barcode_mutant_map["barcodes"] = barcode_mutant_map["barcodes"].apply(lambda x: str(Seq(x).reverse_complement()))
-    barcode_mutant_map["barcodes"] = barcode_mutant_map["barcodes"].astype(np.str)
     raw_barcode_data = raw_barcode_data.reset_index()
 
-    barcode_mutant_map["WT"] = barcode_mutant_map["codons"] == "WT"
-    # add dummy value for WT barcodes
-    barcode_mutant_map["amino acids"] = "WT"
-    barcode_mutant_map.loc[~barcode_mutant_map["WT"], "codons"] = barcode_mutant_map.loc[~barcode_mutant_map["WT"], "codons"].apply(lambda x: str(Seq(x).transcribe()))
-    barcode_mutant_map.loc[~barcode_mutant_map["WT"], "amino acids"] = barcode_mutant_map.loc[~barcode_mutant_map["WT"], "codons"].apply(lambda x: str(Seq(x).translate()))
+    barcode_mutant_map = utils.load_mutant_map(hdf5_datastorepath, allele_pkl_path = allele_pkl_path)
 
+    print("Done.\n\nMapping...", flush=True, end="")
     mapped_barcode_data = raw_barcode_data.merge(barcode_mutant_map, on="barcodes", copy=False)
     print("Done.", flush=True)
 
@@ -66,6 +63,8 @@ def process_data(hdf5_datastorepath, allele_pkl_path = None, experimental_info_c
 
     medians = rel_freq.unstack("group").unstack("days").loc[idx[:, "WT"], :].median()
 
+    # calculate relative frequency
+    # if relative_fitness is false, rel_wt will hold the absolute values
     rel_wt = rel_freq.unstack("group").unstack("days")
     if relative_fitness:
         rel_wt = rel_wt / medians
@@ -80,7 +79,7 @@ def process_data(hdf5_datastorepath, allele_pkl_path = None, experimental_info_c
 
     all_tp = rel_wt_gen_times[np.all(pd.notnull(rel_wt_gen_times["rel_wt"]), axis=1)]
 
-    slopes = groupby_parallel(all_tp.groupby(level=["group", "days", "amino acids"]), linregress_df)
+    slopes = _groupby_parallel(all_tp.groupby(level=["group", "days", "amino acids"]), _linregress_df)
 
     # handle barcodes that only show up in two timepoints
     two_tp_only = rel_wt_gen_times[pd.isnull(rel_wt_gen_times["rel_wt"]).sum(axis=1) == 1]
@@ -103,8 +102,12 @@ def process_data(hdf5_datastorepath, allele_pkl_path = None, experimental_info_c
 
 
 def calc_fitness_by_codon(slopes):
-    extra_col_names, extra_funcs, weighted_avg_func = _init_weighting()
-    codons_weighted = slopes.groupby(level=["group", "days", "codons", "positions"]).apply(weighted_avg_func)
+    '''
+    Calculates fitness on a per-codon basis.
+    :param slopes: A dataframe of per-barcode fitness.
+    '''
+    extra_col_names, extra_funcs = _init_weighting()
+    codons_weighted = slopes.groupby(level=["group", "days", "codons", "positions"]).apply(_weighted_avg)
     codons_weighted.name = "weighted mean slope"
     codons_extra = slopes.groupby(level=["group", "days", "codons", "positions"]).agg(extra_funcs)
     codons_extra.columns = extra_col_names
@@ -112,8 +115,12 @@ def calc_fitness_by_codon(slopes):
 
 
 def calc_fitness_by_aa(slopes):
-    extra_col_names, extra_funcs, weighted_avg_func = _init_weighting()
-    aa_weighted = slopes.groupby(level=["group", "days", "amino acids", "positions"]).apply(weighted_avg_func)
+    '''
+    Calculates fitness on a per-amino acid basis.
+    :param slopes: A dataframe of per-barcode fitness.
+    '''
+    extra_col_names, extra_funcs = _init_weighting()
+    aa_weighted = slopes.groupby(level=["group", "days", "amino acids", "positions"]).apply(_weighted_avg)
     aa_weighted.name = "weighted mean slope"
     aa_extra = slopes.groupby(level=["group", "days", "amino acids", "positions"]).agg(extra_funcs)
     aa_extra.columns = extra_col_names
@@ -123,24 +130,27 @@ def calc_fitness_by_aa(slopes):
 def _init_weighting():
     extra_col_names = ["# unique barcodes", "stddev of slope", "sum of t0 reads"]
     extra_funcs = {("fitness", "slope"):[len, np.std], ("counts", "t0"):np.sum}
-    weighted_avg_func = lambda x: (x[("fitness", "slope")]*np.log(x[("counts", "t0")])/np.log(x[("counts", "t0")]).sum()).sum()
-    return extra_col_names, extra_funcs, weighted_avg_func
+    return extra_col_names, extra_funcs
 
 
-def linregress_wrapper(xs, ys):
+def _weighted_avg(x):
+    return (x[("fitness", "slope")]*np.log(x[("counts", "t0")])/np.log(x[("counts", "t0")]).sum()).sum()
+
+
+def _linregress_wrapper(xs, ys):
     slope, intercept, r, p, stderr = scipy.stats.linregress(xs, ys)
     return pd.Series({"slope": slope, "r^2": r**2, "intercept": intercept, "stderr": stderr},
                      index=["slope", "intercept", "stderr"], name="stats")
 
 
-def linregress_df(args):
+def _linregress_df(args):
     df, q = args
-    result = df.apply(lambda x: linregress_wrapper(x.values[3:], x.values[:3]), axis=1)
+    result = df.apply(lambda x: _linregress_wrapper(x.values[3:], x.values[:3]), axis=1)
     q.put(0)
     return result
 
 
-def groupby_parallel(groupby_df, func):
+def _groupby_parallel(groupby_df, func):
     start = timer()
     num_cpus = cpu_count()
     print("\nUsing {} cpus in parallel...\n\nPercent complete: ".format(num_cpus), end="")
@@ -157,5 +167,4 @@ def groupby_parallel(groupby_df, func):
         print("Percent complete: {:.0%}".format(1))
     print("\nProcessed on {} slopes in {:.1f}s".format(groupby_df.count().sum().max(), timer() - start))
     return pd.concat(result.get())
-
 

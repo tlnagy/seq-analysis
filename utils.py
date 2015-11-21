@@ -1,9 +1,33 @@
 import pandas as pd
 import numpy as np
 import sklearn.neighbors
+import os
+import pickle
 from multiprocessing import Pool, Manager, cpu_count
+from Bio.Seq import Seq
 import time, itertools
 from timeit import default_timer as timer
+
+
+def load_mutant_map(hdf5_datastorepath, allele_pkl_path = None):
+
+    if allele_pkl_path is None:
+        allele_pkl_path = os.path.join(*[os.path.split(hdf5_datastorepath)[0], "allele_dic_with_WT.pkl"])
+    with open(allele_pkl_path, "rb") as f:
+        barcode_mutant_map = pd.DataFrame(pickle.load(f)).T.reset_index()
+
+    barcode_mutant_map.columns = ["barcodes", "positions", "codons"]
+    barcode_mutant_map["barcodes"] = barcode_mutant_map["barcodes"].apply(lambda x: str(Seq(x).reverse_complement()))
+    barcode_mutant_map["barcodes"] = barcode_mutant_map["barcodes"].astype(np.str)
+
+    barcode_mutant_map["WT"] = barcode_mutant_map["codons"] == "WT"
+    # add dummy value for WT barcodes
+    barcode_mutant_map["amino acids"] = "WT"
+    barcode_mutant_map.loc[~barcode_mutant_map["WT"], "codons"] = barcode_mutant_map.loc[~barcode_mutant_map["WT"], "codons"].apply(lambda x: str(Seq(x).transcribe()))
+    barcode_mutant_map.loc[~barcode_mutant_map["WT"], "amino acids"] = barcode_mutant_map.loc[~barcode_mutant_map["WT"], "codons"].apply(lambda x: str(Seq(x).translate()))
+
+    return barcode_mutant_map
+
 
 
 def load_gen_times(df, experimental_info_csv_path):
@@ -56,13 +80,14 @@ def parallel_hamming(arr, func):
     return (np.concatenate(data) for data in zip(*result.get()))
 
 
-def hamming_correct(raw_barcode_data, mapped_barcode_data, barcode_mutant_map):
+def hamming_correct(raw_barcode_data, mapped_barcode_data, barcode_mutant_map, max_dist=3):
     """
     High performance mapping of unmapped barcodes onto barcode library. Only unambigious and small errors will be corrected.
 
     :param raw_barcode_data:
     :param mapped_barcode_data:
     :param barcode_mutant_map:
+    :param max_dist: The maximum Hamming distance allowed
     :return: new_mapped_barcode_data
     """
     unmapped_raw_barcode_data = raw_barcode_data[~raw_barcode_data["barcodes"].isin(barcode_mutant_map["barcodes"])]
@@ -82,9 +107,9 @@ def hamming_correct(raw_barcode_data, mapped_barcode_data, barcode_mutant_map):
 
     dist_from_muts = dist*18
 
-    # find only lib barcodes that are nonambiguous and only <3 steps away from the
+    # find only lib barcodes that are nonambiguous and only < max_dist steps away from the
     # unmapped barcode
-    mask = (np.diff(dist_from_muts).flatten() >= 1) & (dist_from_muts[:, 0] < 3)
+    mask = (np.diff(dist_from_muts).flatten() >= 1) & (dist_from_muts[:, 0] < max_dist)
     output = ind[mask]
     # preserve index position so we know which unmapped barcode each value
     # corresponds to
