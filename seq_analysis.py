@@ -18,7 +18,7 @@ import itertools, time
 from timeit import default_timer as timer
 
 
-def process_data(hdf5_datastorepath, allele_pkl_path = None, experimental_info_csv_path=None, hamming_correct=False):
+def process_data(hdf5_datastorepath, allele_pkl_path = None, experimental_info_csv_path=None, hamming_correct=False, relative_fitness=True):
     print("Loading data...", flush=True, end="")
     idx = pd.IndexSlice
     raw_barcode_data = pd.read_hdf(hdf5_datastorepath, key="grouped_data")
@@ -66,7 +66,9 @@ def process_data(hdf5_datastorepath, allele_pkl_path = None, experimental_info_c
 
     medians = rel_freq.unstack("group").unstack("days").loc[idx[:, "WT"], :].median()
 
-    rel_wt = rel_freq.unstack("group").unstack("days")/medians
+    rel_wt = rel_freq.unstack("group").unstack("days")
+    if relative_fitness:
+        rel_wt = rel_wt / medians
 
     rel_wt = rel_wt.stack("group").stack("days").reorder_levels([4, 5, 0, 1, 2, 3]).sort_index(level=["group", "days"])
     rel_wt.columns.set_levels(["rel_wt"], level=0, inplace=True)
@@ -97,22 +99,32 @@ def process_data(hdf5_datastorepath, allele_pkl_path = None, experimental_info_c
     normed_df = pd.DataFrame(normed_df.values, index=normed_df.index, columns=new_cols)
     slopes = pd.concat([slopes, normed_df], axis=1)
 
-    extra_funcs = {("fitness", "slope"):[len, np.std], ("counts", "t0"):np.sum}
-    weighted_avg_func = lambda x: (x[("fitness", "slope")]*np.log(x[("counts", "t0")])/np.log(x[("counts", "t0")]).sum()).sum()
-    extra_col_names = ["# unique barcodes", "stddev of slope", "sum of t0 reads"]
+    return slopes, calc_fitness_by_codon(slopes), calc_fitness_by_aa(slopes)
 
-    aa_weighted = slopes.groupby(level=["group", "days", "amino acids", "positions"]).apply(weighted_avg_func)
-    aa_weighted.name = "weighted mean slope"
-    aa_extra = slopes.groupby(level=["group", "days", "amino acids", "positions"]).agg(extra_funcs)
-    aa_extra.columns = extra_col_names
-    aa_weighted = pd.concat([aa_weighted, aa_extra], axis=1)
+
+def calc_fitness_by_codon(slopes):
+    extra_col_names, extra_funcs, weighted_avg_func = _init_weighting()
     codons_weighted = slopes.groupby(level=["group", "days", "codons", "positions"]).apply(weighted_avg_func)
     codons_weighted.name = "weighted mean slope"
     codons_extra = slopes.groupby(level=["group", "days", "codons", "positions"]).agg(extra_funcs)
     codons_extra.columns = extra_col_names
-    codons_weighted = pd.concat([codons_weighted, codons_extra], axis=1)
+    return pd.concat([codons_weighted, codons_extra], axis=1)
 
-    return slopes, codons_weighted, aa_weighted
+
+def calc_fitness_by_aa(slopes):
+    extra_col_names, extra_funcs, weighted_avg_func = _init_weighting()
+    aa_weighted = slopes.groupby(level=["group", "days", "amino acids", "positions"]).apply(weighted_avg_func)
+    aa_weighted.name = "weighted mean slope"
+    aa_extra = slopes.groupby(level=["group", "days", "amino acids", "positions"]).agg(extra_funcs)
+    aa_extra.columns = extra_col_names
+    return pd.concat([aa_weighted, aa_extra], axis=1)
+
+
+def _init_weighting():
+    extra_col_names = ["# unique barcodes", "stddev of slope", "sum of t0 reads"]
+    extra_funcs = {("fitness", "slope"):[len, np.std], ("counts", "t0"):np.sum}
+    weighted_avg_func = lambda x: (x[("fitness", "slope")]*np.log(x[("counts", "t0")])/np.log(x[("counts", "t0")]).sum()).sum()
+    return extra_col_names, extra_funcs, weighted_avg_func
 
 
 def linregress_wrapper(xs, ys):
