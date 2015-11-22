@@ -23,7 +23,7 @@ def process_data(hdf5_datastorepath, allele_pkl_path = None, experimental_info_c
     :param hdf5_datastorepath: The location of the HDF5 FASTQ file.
     :param allele_pkl_path: The location of the allele_dic_with_WT.pkl pickle file.
     :param experimental_info_csv_path: The location of the truseq_primers.csv file.
-    :param hamming_correct: Run Hamming correction. Hamming distance is capped at 2, and only barcodes that map unambiguously to a single known barcode will be corrected.
+    :param hamming_correct: Run Hamming correction. Max hamming distance is capped at 3 and only barcodes that map unambiguously to a single known barcode will be corrected.
     :param relative_fitness: If true, barcode counts are normalized per-group, per-day, and per-timepoint by the WT fitness.
     :return: A tuple (barcode fitness, codon fitness, amino acid fitness).
     '''
