@@ -56,9 +56,12 @@ def process_data(hdf5_datastorepath, allele_pkl_path = None, experimental_info_c
     print("Throwing out barcodes that have nans prior to counts...\n{}".format(processed_barcodes[has_nan_to_val_trans].groupby(level="group").size()))
     processed_barcodes = processed_barcodes[~has_nan_to_val_trans]
 
-    sums = processed_barcodes.unstack("group").unstack("days").reorder_levels([0, 2, 3, 1], axis=1).sort_index(level=["group", "days"], axis=1).sum()
+    pseudo_counts_added = processed_barcodes.copy()
+    pseudo_counts_added.loc[pd.isnull(pseudo_counts_added[("counts", "t1")]), ("counts", "t1")] = 0.5
 
-    rel_freq = processed_barcodes.unstack("group").unstack("days").reorder_levels([0, 2, 3, 1], axis=1).sort_index(level=["group", "days"], axis=1)/sums
+    sums = pseudo_counts_added.unstack("group").unstack("days").reorder_levels([0, 2, 3, 1], axis=1).sort_index(level=["group", "days"], axis=1).sum()
+
+    rel_freq = pseudo_counts_added.unstack("group").unstack("days").reorder_levels([0, 2, 3, 1], axis=1).sort_index(level=["group", "days"], axis=1)/sums
     rel_freq = rel_freq.stack("group").stack("days").reorder_levels([4, 5, 0, 1, 2, 3]).sort_index(level=["group", "days"])
 
     medians = rel_freq.unstack("group").unstack("days").loc[idx[:, "WT"], :].median()
@@ -81,7 +84,7 @@ def process_data(hdf5_datastorepath, allele_pkl_path = None, experimental_info_c
 
     slopes = _groupby_parallel(all_tp.groupby(level=["group", "days", "amino acids"]), _linregress_df)
 
-    # handle barcodes that only show up in two timepoints
+    # handle barcodes that only show up in two timepoints, plus the ones show up only in the first
     two_tp_only = rel_wt_gen_times[pd.isnull(rel_wt_gen_times["rel_wt"]).sum(axis=1) == 1]
     deltas = two_tp_only.diff(axis=1)
     two_tp_slopes = (deltas[("rel_wt", "t1")]/deltas[("Generations", "t1")])
