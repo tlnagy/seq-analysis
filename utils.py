@@ -9,6 +9,9 @@ import time, itertools
 from timeit import default_timer as timer
 
 
+canonical_yeast_ubq = list(" QIFVKTLTGKTITLEVESSDTIDNVKSKIQDKEGIPPDQQRLIFAGKQLEDGRTLSDYNIQKESTLHLVLRLRGG ")
+
+
 def load_mutant_map(hdf5_datastorepath, allele_pkl_path = None):
 
     if allele_pkl_path is None:
