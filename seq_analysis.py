@@ -109,10 +109,11 @@ def calc_fitness_by_codon(slopes):
     Calculates fitness on a per-codon basis.
     :param slopes: A dataframe of per-barcode fitness.
     '''
-    extra_col_names, extra_funcs = _init_weighting()
+    extra_col_order, extra_col_names, extra_funcs = _init_weighting()
     codons_weighted = slopes.groupby(level=["group", "days", "codons", "positions"]).apply(_weighted_avg)
     codons_weighted.name = "weighted mean slope"
     codons_extra = slopes.groupby(level=["group", "days", "codons", "positions"]).agg(extra_funcs)
+    codons_extra = codons_extra[extra_col_order]
     codons_extra.columns = extra_col_names
     return pd.concat([codons_weighted, codons_extra], axis=1)
 
@@ -122,18 +123,20 @@ def calc_fitness_by_aa(slopes):
     Calculates fitness on a per-amino acid basis.
     :param slopes: A dataframe of per-barcode fitness.
     '''
-    extra_col_names, extra_funcs = _init_weighting()
+    extra_col_order, extra_col_names, extra_funcs = _init_weighting()
     aa_weighted = slopes.groupby(level=["group", "days", "amino acids", "positions"]).apply(_weighted_avg)
     aa_weighted.name = "weighted mean slope"
     aa_extra = slopes.groupby(level=["group", "days", "amino acids", "positions"]).agg(extra_funcs)
+    aa_extra = aa_extra[extra_col_order]
     aa_extra.columns = extra_col_names
     return pd.concat([aa_weighted, aa_extra], axis=1)
 
 
 def _init_weighting():
+    extra_col_order = [("fitness", "slope", "len"), ("fitness", "slope", "std"), ("counts", "t0", "sum")]
     extra_col_names = ["# unique barcodes", "stddev of slope", "sum of t0 reads"]
-    extra_funcs = {("fitness", "slope"):[len, np.std], ("counts", "t0"):np.sum}
-    return extra_col_names, extra_funcs
+    extra_funcs = {("fitness", "slope"):[np.std, len], ("counts", "t0"):np.sum}
+    return extra_col_order, extra_col_names, extra_funcs
 
 
 def _weighted_avg(x):
