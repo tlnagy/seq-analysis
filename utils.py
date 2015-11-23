@@ -138,3 +138,23 @@ def hamming_correct(raw_barcode_data, mapped_barcode_data, barcode_mutant_map, m
     new_mapped_barcode_data = new_raw_barcode_data.merge(barcode_mutant_map, on="barcodes")
 
     return new_mapped_barcode_data
+
+
+def subtract_control(df, merge_on=["amino acids", "positions"]):
+    """
+    Subtracts control data from the perturbation data
+
+    :param df: either aa_weighted or codons_weighted
+    :param merge_on: the columns to merge on either AA-pos or codons-pos
+    :return: a dataframe with a difference column
+    """
+    s1 = df.loc[df.index.get_level_values("group") != "Control", "weighted mean slope"]
+    s2 = df.loc["Control", "weighted mean slope"]
+    merged = pd.merge(s1.reset_index(), s2.reset_index(), on=merge_on)
+    merged["diff"] = merged["weighted mean slope_x"] - merged["weighted mean slope_y"]
+    merged.drop("days_y", axis=1, inplace=True)
+    merged.rename(columns={'days_x':'days'}, inplace=True)
+    merged = merged.set_index(["group", "days", "amino acids", "positions"]).sort_index()
+    merged.drop("WT", level="amino acids", inplace=True)
+    merged.drop(["weighted mean slope_x", "weighted mean slope_y"], axis=1, inplace=True)
+    return merged
