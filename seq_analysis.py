@@ -7,7 +7,6 @@ try:
         warnings.warn("Python 2 is old and yucky, please use 3", RuntimeWarning)
 except ImportError:
     sys.exit(2)
-from Bio.Seq import Seq
 import pandas as pd
 import numpy as np
 import scipy.stats
