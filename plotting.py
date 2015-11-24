@@ -35,6 +35,7 @@ def plot_heatmap(df, title, file_name, vmax=1.5, vmin=-1.5, cmap=sns.diverging_p
     sns.heatmap(df, square=True, linewidths=0.25, xticklabels=2, cmap=cmap, vmin=vmin, vmax=vmax)
     yeast_ubq = np.array(utils.canonical_yeast_ubq)
     mask = df.apply(lambda x: x.index.isin(np.where(yeast_ubq == x.name)[0]+1), axis=1)
+    df.loc[:, :] = 1
     sns.heatmap(df, mask=~mask, cmap=sns.dark_palette("grey", n_colors=1, as_cmap=True, reverse=True), xticklabels=2, cbar=False, square=True, alpha=0.6)
 
     plt.yticks(rotation=0)
