@@ -94,6 +94,8 @@ def hamming_correct(raw_barcode_data, mapped_barcode_data, barcode_mutant_map, m
     :return: new_mapped_barcode_data
     """
     unmapped_raw_barcode_data = raw_barcode_data[~raw_barcode_data["barcodes"].isin(barcode_mutant_map["barcodes"])]
+    print("Recovering {} unmapped barcodes".format(len(unmapped_raw_barcode_data)))
+    print("Recovering {} counts".format(unmapped_raw_barcode_data["counts"].sum()))
 
     unmapped_barcodes = unmapped_raw_barcode_data["barcodes"].unique().astype("str")
     unmapped_as_int = unmapped_barcodes.view('S4').reshape((unmapped_barcodes.size, -1)).view(np.uint32)
@@ -119,6 +121,8 @@ def hamming_correct(raw_barcode_data, mapped_barcode_data, barcode_mutant_map, m
     og_idx = np.arange(len(ind))
 
     corrected = np.vstack([unmapped_barcodes[og_idx[mask]], barcode_lib[output][:, 0]]).T
+
+    print("{} barcodes will be remapped".format(len(corrected)))
 
     # mapping of the erroneous barcode to its closest neighbor in the barcode lib
     new_mapping = unmapped_raw_barcode_data.merge(pd.DataFrame(corrected, columns=["barcodes", "corrected_bc"]), on="barcodes")
