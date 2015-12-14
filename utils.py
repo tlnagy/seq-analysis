@@ -9,6 +9,9 @@ import time, itertools
 from timeit import default_timer as timer
 
 
+canonical_yeast_ubq = list(" QIFVKTLTGKTITLEVESSDTIDNVKSKIQDKEGIPPDQQRLIFAGKQLEDGRTLSDYNIQKESTLHLVLRLRGG ")
+
+
 def load_mutant_map(hdf5_datastorepath, allele_pkl_path = None):
 
     if allele_pkl_path is None:
@@ -91,6 +94,8 @@ def hamming_correct(raw_barcode_data, mapped_barcode_data, barcode_mutant_map, m
     :return: new_mapped_barcode_data
     """
     unmapped_raw_barcode_data = raw_barcode_data[~raw_barcode_data["barcodes"].isin(barcode_mutant_map["barcodes"])]
+    print("Recovering {} unmapped barcodes".format(len(unmapped_raw_barcode_data)))
+    print("Recovering {} counts".format(unmapped_raw_barcode_data["counts"].sum()))
 
     unmapped_barcodes = unmapped_raw_barcode_data["barcodes"].unique().astype("str")
     unmapped_as_int = unmapped_barcodes.view('S4').reshape((unmapped_barcodes.size, -1)).view(np.uint32)
@@ -117,6 +122,8 @@ def hamming_correct(raw_barcode_data, mapped_barcode_data, barcode_mutant_map, m
 
     corrected = np.vstack([unmapped_barcodes[og_idx[mask]], barcode_lib[output][:, 0]]).T
 
+    print("{} barcodes will be remapped".format(len(corrected)))
+
     # mapping of the erroneous barcode to its closest neighbor in the barcode lib
     new_mapping = unmapped_raw_barcode_data.merge(pd.DataFrame(corrected, columns=["barcodes", "corrected_bc"]), on="barcodes")
     new_mapping.rename(columns={new_mapping.columns[-1]:"barcodes", new_mapping.columns[-3]:"old_barcodes"}, inplace=True)
@@ -138,3 +145,23 @@ def hamming_correct(raw_barcode_data, mapped_barcode_data, barcode_mutant_map, m
     new_mapped_barcode_data = new_raw_barcode_data.merge(barcode_mutant_map, on="barcodes")
 
     return new_mapped_barcode_data
+
+
+def subtract_control(df, merge_on=["amino acids", "positions"]):
+    """
+    Subtracts control data from the perturbation data
+
+    :param df: either aa_weighted or codons_weighted
+    :param merge_on: the columns to merge on either AA-pos or codons-pos
+    :return: a dataframe with a difference column
+    """
+    s1 = df.loc[df.index.get_level_values("group") != "Control", "weighted mean slope"]
+    s2 = df.loc["Control", "weighted mean slope"]
+    merged = pd.merge(s1.reset_index(), s2.reset_index(), on=merge_on)
+    merged["diff"] = merged["weighted mean slope_x"] - merged["weighted mean slope_y"]
+    merged.drop("days_y", axis=1, inplace=True)
+    merged.rename(columns={'days_x':'days'}, inplace=True)
+    merged = merged.set_index(["group", "days", "amino acids", "positions"]).sort_index()
+    merged.drop("WT", level="amino acids", inplace=True)
+    merged.drop(["weighted mean slope_x", "weighted mean slope_y"], axis=1, inplace=True)
+    return merged
