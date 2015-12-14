@@ -105,7 +105,7 @@ def calc_wt_mutant_pvals(df, barcode_df, by_codon=False, weighted=True, method=p
 #################################
 
 
-def calc_case_control_diff(control_df, case_df, by_codons=False, weighted=True, diff_col_name='case-control slope diff'):
+def calc_case_control_diff(control_df, case_df, by_codons=False, weighted=True, diff_col_name='case-control slope diff', control_suffix=': control', case_suffix=': case'):
     """
     Calculates the difference (case slopes - control slopes).
     :param control_df:
@@ -113,16 +113,16 @@ def calc_case_control_diff(control_df, case_df, by_codons=False, weighted=True, 
     :param by_codon: Group by (codon, position) rather than (AA, position)
     :param weighted: Calculate using weighted slopes
     :param diff_col_name: The name of the column for the difference to add
-    :return: A dataframe with columns from control_df and case_df, where each column is given the name original_col_name + ': case'
-    or original_col_name + ': control'. An additional column with name diff_col_name is added.
+    :return: A dataframe with columns from control_df and case_df, where each column is given the name original_col_name + case_suffix
+    or original_col_name + control_suffix. An additional column with name diff_col_name is added.
     """
     slope_name = 'weighted mean slope' if weighted else 'unweighted mean slope'
     case_df = case_df.copy()
     control_df = control_df.copy()
     case_df = case_df.reset_index('group', drop=True).reset_index('days', drop=True).reset_index(['amino acids', 'positions'])
     control_df = control_df.reset_index('group', drop=True).reset_index('days', drop=True).reset_index(['amino acids', 'positions'])
-    merged = pd.merge(control_df, case_df, how='inner', suffixes=[': control', ': case'], left_on=['amino acids', 'positions'], right_on=['amino acids', 'positions'])
-    merged[diff_col_name] = merged[slope_name + ': case'] - merged[slope_name + ': control']
+    merged = pd.merge(control_df, case_df, how='inner', suffixes=[control_suffix, case_suffix], left_on=['amino acids', 'positions'], right_on=['amino acids', 'positions'])
+    merged[diff_col_name] = merged[slope_name + case_suffix] - merged[slope_name + control_suffix]
     return merged.set_index(['positions', 'amino acids'])
 
 
