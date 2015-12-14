@@ -125,7 +125,10 @@ def calc_fitness_by(slopes, by_codons=False):
     stds = slopes.groupby(level=group_on).apply(lambda x: x[("fitness", "slope")].std())
     stds.name = 'stddev of slope'
 
-    combined = pd.concat([weighted, counts, n_barcodes, stds], axis=1)
+    unweighted_slopes = slopes.groupby(level=group_on).apply(lambda x: x[("fitness", "slope")].mean())
+    unweighted_slopes.name = 'unweighted mean slope'
+
+    combined = pd.concat([weighted, counts, n_barcodes, stds, unweighted_slopes], axis=1)
 
     weighted_stddev = slopes.groupby(level=group_on).apply(weighted_std)
     weighted_stddev.name = "weighted stddev"
