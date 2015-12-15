@@ -154,6 +154,8 @@ def subtract_control(df, merge_on=["amino acids", "positions"]):
     :param df: either aa_weighted or codons_weighted
     :param merge_on: the columns to merge on either AA-pos or codons-pos
     :return: a dataframe with a difference column
+
+    Warning: this function is deprecated. Please see calc_case_control_diff in comparison_and_significance.py instead.
     """
     s1 = df.loc[df.index.get_level_values("group") != "Control", "weighted mean slope"]
     s2 = df.loc["Control", "weighted mean slope"]
