@@ -7,6 +7,7 @@ from multiprocessing import Pool, Manager, cpu_count
 from Bio.Seq import Seq
 import time, itertools
 from timeit import default_timer as timer
+import warnings
 
 
 canonical_yeast_ubq = list(" QIFVKTLTGKTITLEVESSDTIDNVKSKIQDKEGIPPDQQRLIFAGKQLEDGRTLSDYNIQKESTLHLVLRLRGG ")
@@ -157,6 +158,7 @@ def subtract_control(df, merge_on=["amino acids", "positions"]):
 
     Warning: this function is deprecated. Please see calc_case_control_diff in comparison_and_significance.py instead.
     """
+    warnings.warn("deprecated", DeprecationWarning)
     s1 = df.loc[df.index.get_level_values("group") != "Control", "weighted mean slope"]
     s2 = df.loc["Control", "weighted mean slope"]
     merged = pd.merge(s1.reset_index(), s2.reset_index(), on=merge_on)
