@@ -3,6 +3,7 @@
 import numpy as np
 import scipy.stats
 import pandas as pd
+import utils
 
 #################################
 # utility functions
@@ -162,3 +163,24 @@ def calc_case_control_pvals(case_control_diff_df, barcode_control, barcode_case,
     case_control_diff_df['-log10(' + pval_col_name + ')'] = case_control_diff_df[pval_col_name].map(lambda x: -np.log10(x))
     return case_control_diff_df
 
+
+def pairwise_ks_tests(day_to_sample_dict, day_to_dose_dict):
+    """
+    Returns a dataframe of pairwise KS tests between each day.
+    :param day_to_sample_dict: A dictionary mapping each day name (e.g. 'd1') to its sample Series
+    :param day_to_dose_dict: A dictionary mapping each day name to a nice string of (for example) the dose applied at that day
+    :param value_column: The name of the column to compare using KS
+    :return: A dataframe with incidies 'sample 1' and 'sample 2', and columns 'KS statistic' and 'p-value'
+    """
+    lst = []
+    assert day_to_dose_dict.keys() == day_to_dose_dict.keys()
+    compared = set() # set of sets of days compared
+    for day1 in day_to_sample_dict.keys():
+        for day2 in day_to_sample_dict.keys():
+            sample1 = day_to_sample_dict[day1]
+            sample2 = day_to_sample_dict[day2]
+            if day1 != day2 and frozenset([day1, day2]) not in compared:
+                compared.add(frozenset([day1, day2]))
+                x = scipy.stats.ks_2samp(sample1, sample2)
+                lst.append({'sample 1': day_to_dose_dict[day1], 'sample 2': day_to_dose_dict[day2], 'KS statistic': x[0], 'p-value': x[1]})
+    return utils.set_column_sequence(pd.DataFrame(lst), ['sample 1', 'sample 2', 'KS statistic', 'p-value'])

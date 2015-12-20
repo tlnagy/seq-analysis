@@ -84,14 +84,14 @@ def parallel_hamming(arr, func):
     return (np.concatenate(data) for data in zip(*result.get()))
 
 
-def hamming_correct(raw_barcode_data, mapped_barcode_data, barcode_mutant_map, max_dist=3):
+def hamming_correct(raw_barcode_data, mapped_barcode_data, barcode_mutant_map, max_distance=3, barcode_length=18):
     """
-    High performance mapping of unmapped barcodes onto barcode library. Only unambigious and small errors will be corrected.
+    High performance mapping of unmapped barcodes onto barcode library. Only unambiguous and small errors will be corrected.
 
     :param raw_barcode_data:
     :param mapped_barcode_data:
     :param barcode_mutant_map:
-    :param max_dist: The maximum Hamming distance allowed
+    :param max_distance: The maximum Hamming distance allowed (inclusive)
     :return: new_mapped_barcode_data
     """
     unmapped_raw_barcode_data = raw_barcode_data[~raw_barcode_data["barcodes"].isin(barcode_mutant_map["barcodes"])]
@@ -111,14 +111,14 @@ def hamming_correct(raw_barcode_data, mapped_barcode_data, barcode_mutant_map, m
 
     dist, ind = parallel_hamming(unmapped_as_int, nearest_neighbors)
 
-    dist_from_muts = dist*18
+    dist_from_muts = dist*barcode_length
 
     # find only lib barcodes that are nonambiguous and only < max_dist steps away from the
     # unmapped barcode
-    mask = (np.diff(dist_from_muts).flatten() >= 1) & (dist_from_muts[:, 0] < max_dist)
+    dist_upper_bound = max_distance + 1 # better performance for doing < rather than <=
+    mask = (np.diff(dist_from_muts).flatten() >= 1) & (dist_from_muts[:, 0] < dist_upper_bound)
     output = ind[mask]
-    # preserve index position so we know which unmapped barcode each value
-    # corresponds to
+    # preserve index position so we know which unmapped barcode each value corresponds to
     og_idx = np.arange(len(ind))
 
     corrected = np.vstack([unmapped_barcodes[og_idx[mask]], barcode_lib[output][:, 0]]).T
@@ -169,3 +169,12 @@ def subtract_control(df, merge_on=["amino acids", "positions"]):
     merged.drop("WT", level="amino acids", inplace=True)
     merged.drop(["weighted mean slope_x", "weighted mean slope_y"], axis=1, inplace=True)
     return merged
+
+
+def set_column_sequence(dataframe, seq):
+    '''Takes a dataframe and a subsequence of its columns, returns dataframe with seq as first columns'''
+    cols = seq[:] # copy so we don't mutate seq
+    for x in dataframe.columns:
+        if x not in cols:
+            cols.append(x)
+    return dataframe[cols]
